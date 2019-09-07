@@ -1,5 +1,6 @@
 package minecraft.rhanjie.locksystem.listeners;
 
+import minecraft.rhanjie.locksystem.LockSystem;
 import org.bukkit.ChatColor;
 import org.bukkit.Material;
 import org.bukkit.entity.Player;
@@ -9,6 +10,8 @@ import org.bukkit.event.Listener;
 import org.bukkit.event.block.Action;
 import org.bukkit.event.player.PlayerInteractEvent;
 
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Random;
 
 public class ChestInteractionListener implements Listener {
@@ -26,6 +29,12 @@ public class ChestInteractionListener implements Listener {
             int level = 1;
 
             Material itemInHand = player.getInventory().getItemInMainHand().getType();
+
+            //player.sendMessage("[DEBUG SECTION]");
+            //List<String> picklocks = LockSystem.access.getConfig().getStringList("test.picklocks");
+            //for (String picklock : picklocks) {
+            //    player.sendMessage(picklock);
+            //}
 
             if (itemInHand.equals(Material.AIR)) {
                 //TODO: Chest info from config file
