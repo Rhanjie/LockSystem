@@ -7,7 +7,7 @@ import org.bukkit.plugin.java.JavaPlugin;
 
 public class LockSystem extends JavaPlugin {
     public static LockSystem access;
-    public static ConfigManager configManager;
+    private ConfigManager configManager;
 
     @Override
     public void onEnable() {
@@ -22,6 +22,10 @@ public class LockSystem extends JavaPlugin {
 
     @Override
     public void onDisable() {
+    }
+
+    public String getMessage(String id) {
+        return configManager.getMessage(id);
     }
 
 

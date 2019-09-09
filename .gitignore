@@ -12,6 +12,7 @@ build.xml
 
 # maven
 target/
+maven-repository/
 dependency-reduced-pom.xml
 
 # vim
