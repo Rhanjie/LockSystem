@@ -2,6 +2,7 @@ package minecraft.rhanjie.locksystem;
 
 import minecraft.rhanjie.locksystem.listeners.ChestInteractionListener;
 import minecraft.rhanjie.locksystem.utility.ConfigManager;
+import minecraft.throk.api.API;
 import org.bukkit.plugin.PluginManager;
 import org.bukkit.plugin.java.JavaPlugin;
 
@@ -14,10 +15,9 @@ public class LockSystem extends JavaPlugin {
         configManager = new ConfigManager(this);
         access = this;
 
+        this.prepareMySqlTable();
         this.registerCommands();
         this.registerListeners();
-
-        this.getLogger().info(configManager.getMessage("server.test"));
     }
 
     @Override
@@ -28,6 +28,12 @@ public class LockSystem extends JavaPlugin {
         return configManager.getMessage(id);
     }
 
+    private void prepareMySqlTable() {
+        API.updateSQL("CREATE TABLE IF NOT EXISTS `locked_chests_list`(id int AUTO_INCREMENT NOT NULL PRIMARY KEY," +
+                "loc_x int NOT NULL, loc_y int NOT NULL, loc_z int NOT NULL, owner_id int NOT NULL, level int," +
+                "KEY `owner_id` (`owner_id`), FOREIGN KEY (owner_id) REFERENCES player_list(id))" +
+                "ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;");
+    }
 
     private void registerCommands() {
         //...

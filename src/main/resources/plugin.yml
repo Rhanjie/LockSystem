@@ -3,3 +3,5 @@ version: 0.1
 author: RhAnjiE
 main: minecraft.rhanjie.locksystem.LockSystem
 api-version: 1.13
+depend: [API]
+loadbefore: [API]
