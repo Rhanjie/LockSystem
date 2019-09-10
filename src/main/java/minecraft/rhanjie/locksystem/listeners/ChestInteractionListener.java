@@ -27,7 +27,6 @@ public class ChestInteractionListener implements Listener {
             return;
 
         if (event.getAction() == Action.RIGHT_CLICK_BLOCK && event.getClickedBlock().getType() == Material.CHEST) {
-            //TODO; Not tested yet
             int loc_x = event.getClickedBlock().getLocation().getBlockX();
             int loc_y = event.getClickedBlock().getLocation().getBlockY();
             int loc_z = event.getClickedBlock().getLocation().getBlockZ();
@@ -45,32 +44,30 @@ public class ChestInteractionListener implements Listener {
             boolean playerIsOwner = false;
             String ownerName = player.getName();
             int chestLevel = 1;
+            int newChestLevel = 0;
+            int picklockLevel = 0;
 
-            //TODO: Clean try catch code
             try {
                 isChestLocked = result.next();
-            } catch (SQLException exception) {
-                exception.printStackTrace();
-            }
 
-            if (isChestLocked) {
-                try {
+                if (isChestLocked) {
                     String uniqueID = player.getUniqueId().toString();
                     playerIsOwner = uniqueID.equals(result.getString(1));
 
                     ownerName = result.getString(2);
                     chestLevel = result.getInt(3);
-                } catch (SQLException exception) {
-                    exception.printStackTrace();
                 }
+            } catch (SQLException exception) {
+                exception.printStackTrace();
             }
 
             Material itemInHand = player.getInventory().getItemInMainHand().getType();
             FileConfiguration config = LockSystem.access.getConfig();
-
             List<String> padlocks = config.getStringList("padlocks");
 
             for (String padlock : padlocks) {
+                newChestLevel += 1;
+
                 if (itemInHand.toString().equalsIgnoreCase(padlock)) {
                     if (isChestLocked) {
                         if (!playerIsOwner) {
@@ -80,19 +77,23 @@ public class ChestInteractionListener implements Listener {
                             return;
                         }
 
-                        //TODO: Update padlock level to the chest
-                        /*String name = API.playerList.get(player.getUniqueId().toString()).name;
-                        API.updateSQL("UPDATE ...");*/
+                        if (chestLevel >= newChestLevel) {
+                            player.sendMessage(ChatColor.RED + "Skrzynia ma lepsza klodke od tej, ktora probujesz zalozyc!");
 
-                        player.sendMessage(ChatColor.GREEN + "[test] Klodka zalozona!");
+                            event.setCancelled(true);
+                            return;
+                        }
+
+                        API.updateSQL("UPDATE locked_chests_list SET level = " + newChestLevel + " WHERE id = " + seggelinPlayer.id);
+                        player.sendMessage(ChatColor.GREEN + "Klodka ulepszona! Aktualny poziom: " + newChestLevel);
 
                         event.setCancelled(true);
                         return;
                     }
 
 
-                    API.updateSQL("INSERT INTO `locked_chests_list`(`loc_x`, `loc_y`, `loc_z`, `owner_id`, `level`) " +
-                            "values (" + loc_x + ", " + loc_y + ", " + loc_z + ", " + seggelinPlayer.id + ", 1);");
+                    API.updateSQL("INSERT INTO locked_chests_list(loc_x, loc_y, loc_z, owner_id, level) " +
+                            "values (" + loc_x + ", " + loc_y + ", " + loc_z + ", " + seggelinPlayer.id + ", " + newChestLevel + ");");
 
                     player.sendMessage(ChatColor.GREEN + "Klodka zalozona!");
 
@@ -121,21 +122,22 @@ public class ChestInteractionListener implements Listener {
                 List<String> picklocks = config.getStringList("picklocks");
 
                 for (String picklock : picklocks) {
+                    picklockLevel += 1;
+
                     if (itemInHand.toString().equalsIgnoreCase(picklock)) {
                         if (!playerIsOwner) {
-                            //TODO: Calculate the chance of success. If it succeeded, open the chest. If not, tell that accident to the owner
-                            //e.g 10% + 10% * player lockpicking chestLevel - (padlock chestLevel - 1) * 50
-
                             Random random = new Random();
-                            if (random.nextInt(100) > 50) {
-                                player.sendMessage(ChatColor.GREEN + "Wlamales sie do skrzyni");
+
+                            int chanceToSuccess = 10 + 10 * (chestLevel - picklockLevel); //+ player lockpicking level
+                            if (random.nextInt(100) < chanceToSuccess) {
+                                player.sendMessage(ChatColor.GREEN + "Pomyslnie wlamales sie do skrzyni");
 
                                 return;
                             }
 
-                            player.sendMessage(ChatColor.RED + "Zlamales wytrych i zostawiles slady...");
-                            event.setCancelled(true);
+                            player.sendMessage(ChatColor.RED + "Zlamales wytrych i zostawiles slady!");
 
+                            event.setCancelled(true);
                             return;
                         }
                     }

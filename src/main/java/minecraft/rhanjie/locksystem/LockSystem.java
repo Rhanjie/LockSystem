@@ -29,9 +29,9 @@ public class LockSystem extends JavaPlugin {
     }
 
     private void prepareMySqlTable() {
-        API.updateSQL("CREATE TABLE IF NOT EXISTS `locked_chests_list`(id int AUTO_INCREMENT NOT NULL PRIMARY KEY," +
+        API.updateSQL("CREATE TABLE IF NOT EXISTS locked_chests_list(id int AUTO_INCREMENT NOT NULL PRIMARY KEY," +
                 "loc_x int NOT NULL, loc_y int NOT NULL, loc_z int NOT NULL, owner_id int NOT NULL, level int," +
-                "KEY `owner_id` (`owner_id`), FOREIGN KEY (owner_id) REFERENCES player_list(id))" +
+                "KEY owner_id (owner_id), FOREIGN KEY (owner_id) REFERENCES player_list(id))" +
                 "ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;");
     }
 
