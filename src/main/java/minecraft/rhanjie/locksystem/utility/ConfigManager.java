@@ -2,6 +2,7 @@ package minecraft.rhanjie.locksystem.utility;
 
 import com.google.common.collect.Lists;
 import minecraft.rhanjie.locksystem.LockSystem;
+import org.bukkit.ChatColor;
 import org.bukkit.configuration.file.FileConfiguration;
 import org.bukkit.configuration.file.YamlConfiguration;
 
@@ -19,8 +20,6 @@ public class ConfigManager {
         this.plugin = plugin;
         this.config = plugin.getConfig();
 
-        //LockSystem.access
-
         this.loadAll();
     }
 
@@ -30,7 +29,7 @@ public class ConfigManager {
 
     public String getMessage(String id) {
         if (messages.getString(id) == null)
-            return "Message with id '" + id + "' not found!";
+            return "Error! Message with id '" + id + "' not found!";
 
         return messages.getString(id);
     }
@@ -63,7 +62,18 @@ public class ConfigManager {
         messages = YamlConfiguration.loadConfiguration(messagesFile);
         messages.options().copyDefaults(true);
 
-        messages.addDefault("server.test", "testowa wiadomosc");
+        messages.addDefault("chest.ownerInfo", ChatColor.GREEN + "Skrzynia ");
+        messages.addDefault("chest.padlockInfo", "Zabezpieczona zamkiem");
+        messages.addDefault("chest.levelInfo", "Poziom twojej skrzyni ");
+        messages.addDefault("chest.levelTip", "Jesli chcesz zwiekszyc poziom klodki, kliknij odpowiednim blokiem");
+        messages.addDefault("chest.notOwner", ChatColor.RED + "To nie jest twoja skrzynia!");
+
+        messages.addDefault("chest.createSuccess", ChatColor.GREEN + "Klodka zalozona!");
+        messages.addDefault("chest.improveSuccess", ChatColor.GREEN + "Klodka ulepszona!");
+        messages.addDefault("chest.improveFail", ChatColor.RED + "Skrzynia ma lepsza klodke od tej, ktora probujesz zalozyc!");
+
+        messages.addDefault("chest.breakSuccess", ChatColor.GREEN + "Pomyslnie wlamales sie do skrzyni");
+        messages.addDefault("chest.breakFail", ChatColor.RED + "Zlamales wytrych i zostawiles slady!");
 
         try {
             messages.save(messagesFile);
