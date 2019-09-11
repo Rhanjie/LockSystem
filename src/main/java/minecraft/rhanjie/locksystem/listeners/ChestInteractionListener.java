@@ -31,14 +31,13 @@ public class ChestInteractionListener implements Listener {
             int loc_y = event.getClickedBlock().getLocation().getBlockY();
             int loc_z = event.getClickedBlock().getLocation().getBlockZ();
 
+            String conditionWhere = "loc_x = " + loc_x + " AND loc_y = " + loc_y + " AND loc_z = " + loc_z + ";";
+
             API.playerList.put(player.getUniqueId().toString(), new SeggelinPlayer(player.getName(), player.getUniqueId().toString()));
             SeggelinPlayer seggelinPlayer = API.playerList.get(player.getUniqueId().toString());
 
             ResultSet result = API.selectSQL("SELECT player_list.uuid, player_list.name, level FROM locked_chests_list " +
-                    "INNER JOIN player_list ON locked_chests_list.owner_id = player_list.id WHERE " +
-                    "loc_x = " + loc_x + " AND " +
-                    "loc_y = " + loc_y + " AND " +
-                    "loc_z = " + loc_z + ";");
+                    "INNER JOIN player_list ON locked_chests_list.owner_id = player_list.id WHERE " + conditionWhere);
 
             boolean isChestLocked = false;
             boolean playerIsOwner = false;
@@ -84,7 +83,7 @@ public class ChestInteractionListener implements Listener {
                             return;
                         }
 
-                        API.updateSQL("UPDATE locked_chests_list SET level = " + newChestLevel + " WHERE id = " + seggelinPlayer.id);
+                        API.updateSQL("UPDATE locked_chests_list SET level = " + newChestLevel + " WHERE " + conditionWhere);
                         player.sendMessage(ChatColor.GREEN + "Klodka ulepszona! Aktualny poziom: " + newChestLevel);
 
                         event.setCancelled(true);
