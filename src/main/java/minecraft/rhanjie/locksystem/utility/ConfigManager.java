@@ -78,6 +78,8 @@ public class ConfigManager {
         messages.addDefault("lockable.breakSuccess", ChatColor.GREEN + "Pomyslnie wlamales sie do schowka");
         messages.addDefault("lockable.breakFail", ChatColor.RED + "Zlamales wytrych i zostawiles slady!");
 
+        messages.addDefault("lockable.destroyFail", ChatColor.RED + "Nie mozesz zniszczyc zabezpieczonego klodka bloku!");
+
         try {
             messages.save(messagesFile);
         } catch (IOException e) {

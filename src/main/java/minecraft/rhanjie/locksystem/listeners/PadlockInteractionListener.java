@@ -41,11 +41,7 @@ public class PadlockInteractionListener implements Listener {
                     SeggelinPlayer seggelinPlayer = API.playerList.get(uuid);
                     Material itemInHand = player.getInventory().getItemInMainHand().getType();
 
-                    int loc_x = block.getLocation().getBlockX();
-                    int loc_y = block.getLocation().getBlockY();
-                    int loc_z = block.getLocation().getBlockZ();
-                    String conditionWhere = "loc_x = " + loc_x + " AND loc_y = " + loc_y + " AND loc_z = " + loc_z + ";";
-
+                    String conditionWhere = LockSystem.access.getStandardConditionWhere(block.getLocation());
                     ResultSet result = API.selectSQL("SELECT player_list.uuid, player_list.name, level FROM locked_objects_list " +
                             "INNER JOIN player_list ON locked_objects_list.owner_id = player_list.id WHERE " + conditionWhere);
 
@@ -92,6 +88,9 @@ public class PadlockInteractionListener implements Listener {
                                 }
 
                                 API.updateSQL("UPDATE locked_objects_list SET level = " + newPadlockLevel + " WHERE " + conditionWhere);
+
+                                int currentAmount = player.getInventory().getItemInMainHand().getAmount();
+                                player.getInventory().getItemInMainHand().setAmount(currentAmount - 1);
                                 player.sendMessage(LockSystem.access.getMessage("lockable.improveSuccess") + " Aktualny poziom: " + newPadlockLevel);
 
                                 event.setCancelled(true);
@@ -99,9 +98,11 @@ public class PadlockInteractionListener implements Listener {
                             }
 
                             //TODO: Add support for double blocks like chests or doors
-                            API.updateSQL("INSERT INTO locked_objects_list(loc_x, loc_y, loc_z, type, owner_id, level) values (" +
-                                    loc_x + ", " + loc_y + ", " + loc_z + ", '" + block.getType().toString() + "', " + seggelinPlayer.id + ", " + newPadlockLevel + ");");
+                            API.updateSQL("INSERT INTO locked_objects_list(loc_x, loc_y, loc_z, type, owner_id, level, created_at, is_destroyed) values (" +
+                                    loc_x + ", " + loc_y + ", " + loc_z + ", '" + block.getType().toString() + "', " + seggelinPlayer.id + ", " + newPadlockLevel + ", now(), 0);");
 
+                            int currentAmount = player.getInventory().getItemInMainHand().getAmount();
+                            player.getInventory().getItemInMainHand().setAmount(currentAmount - 1);
                             player.sendMessage(LockSystem.access.getMessage("lockable.createSuccess"));
 
                             event.setCancelled(true);
@@ -127,6 +128,7 @@ public class PadlockInteractionListener implements Listener {
                                     }
 
                                     player.sendMessage(LockSystem.access.getMessage("lockable.breakFail"));
+                                    //TODO: Add information for [W]
 
                                     event.setCancelled(true);
                                     return;
@@ -134,10 +136,11 @@ public class PadlockInteractionListener implements Listener {
                             }
                         }
 
-                        //TODO: Change it. This may cause some spam in the chat
                         if (playerIsOwner) {
-                            player.sendMessage(LockSystem.access.getMessage("lockable.levelInfo") + ChatColor.GREEN + currentPadlockLevel);
-                            player.sendMessage(LockSystem.access.getMessage("lockable.levelTip"));
+                            if (itemInHand == Material.BOOK) {
+                                player.sendMessage(LockSystem.access.getMessage("lockable.levelInfo") + ChatColor.GREEN + currentPadlockLevel);
+                                player.sendMessage(LockSystem.access.getMessage("lockable.levelTip"));
+                            }
 
                             return;
                         }

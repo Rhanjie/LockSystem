@@ -1,8 +1,10 @@
 package minecraft.rhanjie.locksystem;
 
+import minecraft.rhanjie.locksystem.listeners.PadlockDestroyListener;
 import minecraft.rhanjie.locksystem.listeners.PadlockInteractionListener;
 import minecraft.rhanjie.locksystem.utility.ConfigManager;
 import minecraft.throk.api.API;
+import org.bukkit.Location;
 import org.bukkit.plugin.PluginManager;
 import org.bukkit.plugin.java.JavaPlugin;
 
@@ -12,8 +14,9 @@ public class LockSystem extends JavaPlugin {
 
     @Override
     public void onEnable() {
-        configManager = new ConfigManager(this);
         access = this;
+
+        configManager = new ConfigManager(this);
 
         this.prepareMySqlTable();
         this.registerCommands();
@@ -28,9 +31,18 @@ public class LockSystem extends JavaPlugin {
         return configManager.getMessage(id);
     }
 
+    public String getStandardConditionWhere(Location location) {
+        int loc_x = location.getBlockX();
+        int loc_y = location.getBlockY();
+        int loc_z = location.getBlockZ();
+
+        return "loc_x = " + loc_x + " AND loc_y = " + loc_y + " AND loc_z = " + loc_z + " AND is_destroyed = 0;";
+    }
+
     private void prepareMySqlTable() {
         API.updateSQL("CREATE TABLE IF NOT EXISTS locked_objects_list(id int AUTO_INCREMENT NOT NULL PRIMARY KEY," +
                 "loc_x int NOT NULL, loc_y int NOT NULL, loc_z int NOT NULL, type varchar(255) NOT NULL, owner_id int NOT NULL, level int NOT NULL, " +
+                "created_at datetime NOT NULL, destroyed_at datetime, is_destroyed bool not null, destroy_guilty varchar(255), destroy_reason varchar(255), " +
                 "KEY owner_id (owner_id), FOREIGN KEY (owner_id) REFERENCES player_list(id))" +
                 "ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;");
     }
@@ -43,5 +55,6 @@ public class LockSystem extends JavaPlugin {
         PluginManager manager = this.getServer().getPluginManager();
 
         manager.registerEvents(new PadlockInteractionListener(), this);
+        manager.registerEvents(new PadlockDestroyListener(), this);
     }
 }
