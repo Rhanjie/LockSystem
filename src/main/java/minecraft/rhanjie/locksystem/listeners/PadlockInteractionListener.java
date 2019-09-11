@@ -97,6 +97,10 @@ public class PadlockInteractionListener implements Listener {
                                 return;
                             }
 
+                            int loc_x = block.getLocation().getBlockX();
+                            int loc_y = block.getLocation().getBlockY();
+                            int loc_z = block.getLocation().getBlockZ();
+
                             //TODO: Add support for double blocks like chests or doors
                             API.updateSQL("INSERT INTO locked_objects_list(loc_x, loc_y, loc_z, type, owner_id, level, created_at, is_destroyed) values (" +
                                     loc_x + ", " + loc_y + ", " + loc_z + ", '" + block.getType().toString() + "', " + seggelinPlayer.id + ", " + newPadlockLevel + ", now(), 0);");
