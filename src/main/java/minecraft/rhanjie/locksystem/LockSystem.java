@@ -1,6 +1,6 @@
 package minecraft.rhanjie.locksystem;
 
-import minecraft.rhanjie.locksystem.listeners.ChestInteractionListener;
+import minecraft.rhanjie.locksystem.listeners.PadlockInteractionListener;
 import minecraft.rhanjie.locksystem.utility.ConfigManager;
 import minecraft.throk.api.API;
 import org.bukkit.plugin.PluginManager;
@@ -29,8 +29,8 @@ public class LockSystem extends JavaPlugin {
     }
 
     private void prepareMySqlTable() {
-        API.updateSQL("CREATE TABLE IF NOT EXISTS locked_chests_list(id int AUTO_INCREMENT NOT NULL PRIMARY KEY," +
-                "loc_x int NOT NULL, loc_y int NOT NULL, loc_z int NOT NULL, owner_id int NOT NULL, level int," +
+        API.updateSQL("CREATE TABLE IF NOT EXISTS locked_objects_list(id int AUTO_INCREMENT NOT NULL PRIMARY KEY," +
+                "loc_x int NOT NULL, loc_y int NOT NULL, loc_z int NOT NULL, type varchar(255) NOT NULL, owner_id int NOT NULL, level int NOT NULL, " +
                 "KEY owner_id (owner_id), FOREIGN KEY (owner_id) REFERENCES player_list(id))" +
                 "ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;");
     }
@@ -42,6 +42,6 @@ public class LockSystem extends JavaPlugin {
     private void registerListeners() {
         PluginManager manager = this.getServer().getPluginManager();
 
-        manager.registerEvents(new ChestInteractionListener(), this);
+        manager.registerEvents(new PadlockInteractionListener(), this);
     }
 }

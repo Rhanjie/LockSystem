@@ -1,2 +1,2 @@
 #LockSystem
-######Plugin for securing chests and breaking into them
+######Plugin for securing blocks like chests and breaking into them

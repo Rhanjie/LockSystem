@@ -49,6 +49,9 @@ public class ConfigManager {
     private void createDefaultConfigIfNotExist() {
         config.options().copyDefaults(true);
 
+        ArrayList<String> lockableBlocks = Lists.newArrayList("chest", "dispenser", "oak_door");
+        config.addDefault("lockableBlocks", lockableBlocks);
+
         ArrayList<String> padlocks = Lists.newArrayList("iron_block", "gold_block", "diamond_block");
         config.addDefault("padlocks", padlocks);
 
@@ -62,18 +65,18 @@ public class ConfigManager {
         messages = YamlConfiguration.loadConfiguration(messagesFile);
         messages.options().copyDefaults(true);
 
-        messages.addDefault("chest.ownerInfo", ChatColor.GREEN + "Skrzynia ");
-        messages.addDefault("chest.padlockInfo", "Zabezpieczona zamkiem");
-        messages.addDefault("chest.levelInfo", "Poziom twojej skrzyni ");
-        messages.addDefault("chest.levelTip", "Jesli chcesz zwiekszyc poziom klodki, kliknij odpowiednim blokiem");
-        messages.addDefault("chest.notOwner", ChatColor.RED + "To nie jest twoja skrzynia!");
+        messages.addDefault("lockable.ownerInfo", ChatColor.GREEN + "Wlasciciel ");
+        messages.addDefault("lockable.padlockInfo", "Zabezpieczona zamkiem");
+        messages.addDefault("lockable.levelInfo", "Poziom klodki ");
+        messages.addDefault("lockable.levelTip", "Jesli chcesz zwiekszyc poziom klodki, kliknij odpowiednim blokiem");
+        messages.addDefault("lockable.notOwner", ChatColor.RED + "Nie masz dostepu do klodki!");
 
-        messages.addDefault("chest.createSuccess", ChatColor.GREEN + "Klodka zalozona!");
-        messages.addDefault("chest.improveSuccess", ChatColor.GREEN + "Klodka ulepszona!");
-        messages.addDefault("chest.improveFail", ChatColor.RED + "Skrzynia ma lepsza klodke od tej, ktora probujesz zalozyc!");
+        messages.addDefault("lockable.createSuccess", ChatColor.GREEN + "Klodka zalozona!");
+        messages.addDefault("lockable.improveSuccess", ChatColor.GREEN + "Klodka ulepszona!");
+        messages.addDefault("lockable.improveFail", ChatColor.RED + "Probujesz zalozyc gorsza lub taka sama klodke!");
 
-        messages.addDefault("chest.breakSuccess", ChatColor.GREEN + "Pomyslnie wlamales sie do skrzyni");
-        messages.addDefault("chest.breakFail", ChatColor.RED + "Zlamales wytrych i zostawiles slady!");
+        messages.addDefault("lockable.breakSuccess", ChatColor.GREEN + "Pomyslnie wlamales sie do schowka");
+        messages.addDefault("lockable.breakFail", ChatColor.RED + "Zlamales wytrych i zostawiles slady!");
 
         try {
             messages.save(messagesFile);
