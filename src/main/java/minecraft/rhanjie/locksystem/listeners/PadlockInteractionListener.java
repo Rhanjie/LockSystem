@@ -38,7 +38,6 @@ public class PadlockInteractionListener implements Listener {
                     String uuid = player.getUniqueId().toString();
                     API.playerList.put(uuid, new SeggelinPlayer(player.getName(), uuid));
 
-                    SeggelinPlayer seggelinPlayer = API.playerList.get(uuid);
                     Material itemInHand = player.getInventory().getItemInMainHand().getType();
 
                     String conditionWhere = LockSystem.access.getStandardConditionWhere(block.getLocation());
@@ -72,44 +71,8 @@ public class PadlockInteractionListener implements Listener {
                         newPadlockLevel += 1;
 
                         if (itemInHand.toString().equalsIgnoreCase(padlock)) {
-                            if (isLocked) {
-                                if (!playerIsOwner) {
-                                    player.sendMessage(LockSystem.access.getMessage("lockable.notOwner"));
+                            this.createPadlock(event, player, isLocked, playerIsOwner, currentPadlockLevel, newPadlockLevel, conditionWhere);
 
-                                    event.setCancelled(true);
-                                    return;
-                                }
-
-                                if (currentPadlockLevel >= newPadlockLevel) {
-                                    player.sendMessage(LockSystem.access.getMessage("lockable.improveFail"));
-
-                                    event.setCancelled(true);
-                                    return;
-                                }
-
-                                API.updateSQL("UPDATE locked_objects_list SET level = " + newPadlockLevel + " WHERE " + conditionWhere);
-
-                                int currentAmount = player.getInventory().getItemInMainHand().getAmount();
-                                player.getInventory().getItemInMainHand().setAmount(currentAmount - 1);
-                                player.sendMessage(LockSystem.access.getMessage("lockable.improveSuccess") + " Aktualny poziom: " + newPadlockLevel);
-
-                                event.setCancelled(true);
-                                return;
-                            }
-
-                            int loc_x = block.getLocation().getBlockX();
-                            int loc_y = block.getLocation().getBlockY();
-                            int loc_z = block.getLocation().getBlockZ();
-
-                            //TODO: Add support for double blocks like chests or doors
-                            API.updateSQL("INSERT INTO locked_objects_list(loc_x, loc_y, loc_z, type, owner_id, level, created_at, is_destroyed) values (" +
-                                    loc_x + ", " + loc_y + ", " + loc_z + ", '" + block.getType().toString() + "', " + seggelinPlayer.id + ", " + newPadlockLevel + ", now(), 0);");
-
-                            int currentAmount = player.getInventory().getItemInMainHand().getAmount();
-                            player.getInventory().getItemInMainHand().setAmount(currentAmount - 1);
-                            player.sendMessage(LockSystem.access.getMessage("lockable.createSuccess"));
-
-                            event.setCancelled(true);
                             return;
                         }
                     }
@@ -121,42 +84,97 @@ public class PadlockInteractionListener implements Listener {
 
                             if (itemInHand.toString().equalsIgnoreCase(picklock)) {
                                 if (!playerIsOwner) {
-                                    Random random = new Random();
+                                    this.tryBreakPadlock(event, player, currentPadlockLevel, picklockLevel);
 
-                                    //TODO: Change it
-                                    int chanceToSuccess = 10 - 50 * (currentPadlockLevel - picklockLevel); //+ player lockpicking level
-                                    if (random.nextInt(100) < chanceToSuccess) {
-                                        player.sendMessage(LockSystem.access.getMessage("lockable.breakSuccess"));
-
-                                        return;
-                                    }
-
-                                    player.sendMessage(LockSystem.access.getMessage("lockable.breakFail"));
-                                    //TODO: Add information for [W]
-
-                                    event.setCancelled(true);
                                     return;
                                 }
                             }
                         }
 
-                        if (playerIsOwner) {
-                            if (itemInHand == Material.BOOK) {
-                                player.sendMessage(LockSystem.access.getMessage("lockable.levelInfo") + ChatColor.GREEN + currentPadlockLevel);
-                                player.sendMessage(LockSystem.access.getMessage("lockable.levelTip"));
-                            }
-
-                            return;
-                        }
-
-                        player.sendMessage(LockSystem.access.getMessage("lockable.ownerInfo") + ChatColor.RED + ownerName);
-                        player.sendMessage(LockSystem.access.getMessage("lockable.padlockInfo"));
-
-                        event.setCancelled(true);
-                        return;
+                        this.displayPadlockInfo(event, player, itemInHand, playerIsOwner, ownerName, currentPadlockLevel);
                     }
                 }
             }
         }
+    }
+
+    private void createPadlock(PlayerInteractEvent event, Player player, boolean isLocked, boolean playerIsOwner, int currentPadlockLevel, int newPadlockLevel, String conditionWhere) {
+        if (isLocked) {
+            if (!playerIsOwner) {
+                player.sendMessage(LockSystem.access.getMessage("lockable.notOwner"));
+
+                event.setCancelled(true);
+                return;
+            }
+
+            if (currentPadlockLevel >= newPadlockLevel) {
+                player.sendMessage(LockSystem.access.getMessage("lockable.improveFail"));
+
+                event.setCancelled(true);
+                return;
+            }
+
+            API.updateSQL("UPDATE locked_objects_list SET level = " + newPadlockLevel + " WHERE " + conditionWhere);
+
+            int currentAmount = player.getInventory().getItemInMainHand().getAmount();
+            player.getInventory().getItemInMainHand().setAmount(currentAmount - 1);
+            player.sendMessage(LockSystem.access.getMessage("lockable.improveSuccess") + " Aktualny poziom: " + newPadlockLevel);
+
+            event.setCancelled(true);
+            return;
+        }
+
+        SeggelinPlayer seggelinPlayer = API.playerList.get(player.getUniqueId().toString());
+
+        Block block = event.getClickedBlock();
+        int loc_x = block.getLocation().getBlockX();
+        int loc_y = block.getLocation().getBlockY();
+        int loc_z = block.getLocation().getBlockZ();
+
+        //TODO: Add support for double blocks like chests or doors
+        API.updateSQL("INSERT INTO locked_objects_list(loc_x, loc_y, loc_z, type, owner_id, level, created_at) values (" +
+                loc_x + ", " + loc_y + ", " + loc_z + ", '" + block.getType().toString() + "', " + seggelinPlayer.id + ", " + newPadlockLevel + ", now());");
+
+        int currentAmount = player.getInventory().getItemInMainHand().getAmount();
+        player.getInventory().getItemInMainHand().setAmount(currentAmount - 1);
+        player.sendMessage(LockSystem.access.getMessage("lockable.createSuccess"));
+
+        event.setCancelled(true);
+    }
+
+    private void tryBreakPadlock(PlayerInteractEvent event, Player player, int currentPadlockLevel, int picklockLevel) {
+        Random random = new Random();
+
+        //TODO: Wait for player skills system
+        int playerLockpickingLevel = 12;
+        int chanceToSuccess = 10 - 50 * (currentPadlockLevel - picklockLevel); //+ player lockpicking level
+        if (random.nextInt(100) < chanceToSuccess) {
+            player.sendMessage(LockSystem.access.getMessage("lockable.breakSuccess"));
+
+            return;
+        }
+
+        String conditionWhere = LockSystem.access.getStandardConditionWhere(event.getClickedBlock().getLocation());
+        API.updateSQL("UPDATE locked_objects_list SET last_break_attempt = now() WHERE " + conditionWhere);
+        //TODO: Add information for [W]
+
+        player.sendMessage(LockSystem.access.getMessage("lockable.breakFail"));
+        event.setCancelled(true);
+    }
+
+    private void displayPadlockInfo(PlayerInteractEvent event, Player player, Material itemInHand, boolean playerIsOwner, String ownerName, int currentPadlockLevel) {
+        if (playerIsOwner) {
+            if (itemInHand == Material.BOOK) {
+                player.sendMessage(LockSystem.access.getMessage("lockable.levelInfo") + ChatColor.GREEN + currentPadlockLevel);
+                player.sendMessage(LockSystem.access.getMessage("lockable.levelTip"));
+            }
+
+            return;
+        }
+
+        player.sendMessage(LockSystem.access.getMessage("lockable.ownerInfo") + ChatColor.RED + ownerName);
+        player.sendMessage(LockSystem.access.getMessage("lockable.padlockInfo"));
+
+        event.setCancelled(true);
     }
 }

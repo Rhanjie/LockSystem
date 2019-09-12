@@ -56,7 +56,7 @@ public class PadlockDestroyListener implements Listener {
                     return;
                 }
 
-                API.updateSQL("UPDATE locked_objects_list SET destroyed_at = now(), is_destroyed = 1, " +
+                API.updateSQL("UPDATE locked_objects_list SET destroyed_at = now(), " +
                         "destroy_guilty = '" + player.getName() + "', destroy_reason = 'Zniszczenie bloku' WHERE " + conditionWhere);
 
                 if (playerIsOwner) {
