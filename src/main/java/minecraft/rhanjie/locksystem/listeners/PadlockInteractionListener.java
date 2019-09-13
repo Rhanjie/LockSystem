@@ -23,79 +23,65 @@ public class PadlockInteractionListener implements Listener {
     @EventHandler(priority = EventPriority.LOW)
     public void onPadlockInteract(PlayerInteractEvent event) {
         Player player = event.getPlayer();
+        Block block = event.getClickedBlock();
 
-        if (event.getClickedBlock() == null)
+        if (event.getAction() != Action.RIGHT_CLICK_BLOCK || block == null)
             return;
 
-        if (event.getAction() == Action.RIGHT_CLICK_BLOCK) {
-            FileConfiguration config = LockSystem.access.getConfig();
+        FileConfiguration config = LockSystem.access.getConfig();
 
-            List<String> lockableBlocks = config.getStringList("lockableBlocks");
-            for (String lockableBlock : lockableBlocks) {
-                Block block = event.getClickedBlock();
+        if (!(LockSystem.access).checkIfElementIsAvailable(config, block.getType().toString(), "lockableBlocks"))
+            return;
 
-                if (block.getType().toString().equalsIgnoreCase(lockableBlock)) {
-                    String uuid = player.getUniqueId().toString();
-                    API.playerList.put(uuid, new SeggelinPlayer(player.getName(), uuid));
+        String uuid = player.getUniqueId().toString();
+        API.playerList.put(uuid, new SeggelinPlayer(player.getName(), uuid));
 
-                    Material itemInHand = player.getInventory().getItemInMainHand().getType();
+        Material itemInHand = player.getInventory().getItemInMainHand().getType();
 
-                    String conditionWhere = LockSystem.access.getStandardConditionWhere(block.getLocation());
-                    ResultSet result = API.selectSQL("SELECT player_list.uuid, player_list.name, level FROM locked_objects_list " +
-                            "INNER JOIN player_list ON locked_objects_list.owner_id = player_list.id WHERE " + conditionWhere);
+        String conditionWhere = LockSystem.access.getStandardConditionWhere(block.getLocation());
+        ResultSet result = API.selectSQL("SELECT player_list.uuid, player_list.name, level FROM locked_objects_list " +
+                "INNER JOIN player_list ON locked_objects_list.owner_id = player_list.id WHERE " + conditionWhere);
 
-                    boolean isLocked = false;
-                    boolean playerIsOwner = false;
-                    String ownerName = player.getName();
+        boolean isLocked = false;
+        boolean playerIsOwner = false;
+        String ownerName = player.getName();
 
-                    int currentPadlockLevel = 1;
-                    int newPadlockLevel = 0;
-                    int picklockLevel = 0;
+        int currentPadlockLevel = 1;
+        int newPadlockLevel = 0;
+        int picklockLevel = 0;
 
-                    try {
-                        isLocked = result.next();
+        try {
+            isLocked = result.next();
 
-                        if (isLocked) {
-                            String uniqueID = player.getUniqueId().toString();
-                            playerIsOwner = uniqueID.equals(result.getString(1));
+            if (isLocked) {
+                String uniqueID = player.getUniqueId().toString();
+                playerIsOwner = uniqueID.equals(result.getString(1));
 
-                            ownerName = result.getString(2);
-                            currentPadlockLevel = result.getInt(3);
-                        }
-                    } catch (SQLException exception) {
-                        exception.printStackTrace();
-                    }
+                ownerName = result.getString(2);
+                currentPadlockLevel = result.getInt(3);
+            }
+        } catch (SQLException exception) {
+            exception.printStackTrace();
+        }
 
-                    List<String> padlocks = config.getStringList("padlocks");
-                    for (String padlock : padlocks) {
-                        newPadlockLevel += 1;
+        if ((LockSystem.access).checkIfElementIsAvailable(config, itemInHand.toString(), "padlocks")) {
+            this.createPadlock(event, player, isLocked, playerIsOwner, currentPadlockLevel, newPadlockLevel, conditionWhere);
 
-                        if (itemInHand.toString().equalsIgnoreCase(padlock)) {
-                            this.createPadlock(event, player, isLocked, playerIsOwner, currentPadlockLevel, newPadlockLevel, conditionWhere);
+            return;
+        }
 
-                            return;
-                        }
-                    }
+        if (!isLocked)
+            return;
 
-                    if (isLocked) {
-                        List<String> picklocks = config.getStringList("picklocks");
-                        for (String picklock : picklocks) {
-                            picklockLevel += 1;
+        if ((LockSystem.access).checkIfElementIsAvailable(config, itemInHand.toString(), "picklocks")) {
+            if (!playerIsOwner) {
+                this.tryBreakPadlock(event, player, currentPadlockLevel, picklockLevel);
 
-                            if (itemInHand.toString().equalsIgnoreCase(picklock)) {
-                                if (!playerIsOwner) {
-                                    this.tryBreakPadlock(event, player, currentPadlockLevel, picklockLevel);
-
-                                    return;
-                                }
-                            }
-                        }
-
-                        this.displayPadlockInfo(event, player, itemInHand, playerIsOwner, ownerName, currentPadlockLevel);
-                    }
-                }
+                return;
             }
         }
+
+        this.displayPadlockInfo(event, player, itemInHand, playerIsOwner, ownerName, currentPadlockLevel);
     }
 
     private void createPadlock(PlayerInteractEvent event, Player player, boolean isLocked, boolean playerIsOwner, int currentPadlockLevel, int newPadlockLevel, String conditionWhere) {
@@ -163,11 +149,9 @@ public class PadlockInteractionListener implements Listener {
     }
 
     private void displayPadlockInfo(PlayerInteractEvent event, Player player, Material itemInHand, boolean playerIsOwner, String ownerName, int currentPadlockLevel) {
-        if (playerIsOwner) {
-            if (itemInHand == Material.BOOK) {
-                player.sendMessage(LockSystem.access.getMessage("lockable.levelInfo") + ChatColor.GREEN + currentPadlockLevel);
-                player.sendMessage(LockSystem.access.getMessage("lockable.levelTip"));
-            }
+        if (playerIsOwner && itemInHand == Material.BOOK) {
+            player.sendMessage(LockSystem.access.getMessage("lockable.levelInfo") + ChatColor.GREEN + currentPadlockLevel);
+            player.sendMessage(LockSystem.access.getMessage("lockable.levelTip"));
 
             return;
         }

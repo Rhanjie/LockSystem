@@ -5,8 +5,11 @@ import minecraft.rhanjie.locksystem.listeners.PadlockInteractionListener;
 import minecraft.rhanjie.locksystem.utility.ConfigManager;
 import minecraft.throk.api.API;
 import org.bukkit.Location;
+import org.bukkit.configuration.file.FileConfiguration;
 import org.bukkit.plugin.PluginManager;
 import org.bukkit.plugin.java.JavaPlugin;
+
+import java.util.List;
 
 public class LockSystem extends JavaPlugin {
     public static LockSystem access;
@@ -31,12 +34,23 @@ public class LockSystem extends JavaPlugin {
         return configManager.getMessage(id);
     }
 
+    //TODO: Move code below to utils file
     public String getStandardConditionWhere(Location location) {
         int loc_x = location.getBlockX();
         int loc_y = location.getBlockY();
         int loc_z = location.getBlockZ();
 
         return "loc_x = " + loc_x + " AND loc_y = " + loc_y + " AND loc_z = " + loc_z + " AND destroyed_at IS NULL;";
+    }
+
+    public boolean checkIfElementIsAvailable(FileConfiguration config, String findingPhrase, String configId) {
+        List<String> elements = config.getStringList(configId);
+        for (String element : elements) {
+            if (findingPhrase.equalsIgnoreCase(element))
+                return true;
+        }
+
+        return false;
     }
 
     private void prepareMySqlTable() {
