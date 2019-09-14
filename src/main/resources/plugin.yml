@@ -1,5 +1,5 @@
 name: LockSystem
-version: 0.1
+version: 1.0
 author: RhAnjiE
 main: minecraft.rhanjie.locksystem.LockSystem
 api-version: 1.13

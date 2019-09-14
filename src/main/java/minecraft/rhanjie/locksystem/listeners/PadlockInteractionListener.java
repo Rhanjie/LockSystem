@@ -122,27 +122,53 @@ public class PadlockInteractionListener implements Listener {
         SeggelinPlayer seggelinPlayer = API.playerList.get(player.getUniqueId().toString());
 
         Block block = event.getClickedBlock();
-        int loc_x = block.getLocation().getBlockX();
-        int loc_y = block.getLocation().getBlockY();
-        int loc_z = block.getLocation().getBlockZ();
+        int locX = block.getLocation().getBlockX();
+        int locY = block.getLocation().getBlockY();
+        int locZ = block.getLocation().getBlockZ();
 
-        if (block instanceof DoubleChest) {
-            player.sendMessage(ChatColor.MAGIC + "Podwojna skrzynia!\n\n test");
-        }
+        Integer secondLocX = null;
+        Integer secondLocY = null;
+        Integer secondLocZ = null;
 
         //TODO: Add support for double blocks like chests or doors
-        API.updateSQL("INSERT INTO locked_objects_list(loc_x, loc_y, loc_z, type, owner_id, level, created_at) values (" +
-                loc_x + ", " + loc_y + ", " + loc_z + ", '" + block.getType().toString() + "', " + seggelinPlayer.id + ", " + newPadlockLevel + ", now());");
+        if (block.getState() instanceof Chest) {
+            Chest chest = (Chest) block.getState();
+            InventoryHolder holder = chest.getInventory().getHolder();
+            if (holder instanceof DoubleChest) {
+                DoubleChest doubleChest = (DoubleChest) holder;
+                Chest secondPart = (Chest) doubleChest.getLeftSide();
 
-        /*Chest chest = block; // The Chest blockstate of one of them.
-        InventoryHolder holder = chest.getInventory().getHolder();
-        if (holder instanceof DoubleChest) {
-            DoubleChest doubleChest = (DoubleChest) holder;
-            Chest leftChest = (Chest) doubleChest.getLeftSide();
-            Chest rightChest = (Chest) doubleChest.getRightSide();
+                if (secondPart != null) {
+                    if (block.getLocation().equals(secondPart.getLocation()))
+                        secondPart = (Chest) doubleChest.getRightSide();
+                }
 
-            leftChest.getBlock().getLocation()
-        }*/
+                if (secondPart != null) {
+                    secondLocX = secondPart.getBlock().getLocation().getBlock().getLocation().getBlockX();
+                    secondLocY = secondPart.getBlock().getLocation().getBlock().getLocation().getBlockY();
+                    secondLocZ = secondPart.getBlock().getLocation().getBlock().getLocation().getBlockZ();
+                }
+            }
+        }
+
+        else if (block.getBlockData() instanceof Door) {
+            Door door = (Door) block.getBlockData();
+            String doorPart = door.getHalf().toString();
+
+            secondLocX = locX;
+            secondLocY = locY;
+            secondLocZ = locZ;
+
+            if (doorPart.equals("TOP"))
+                secondLocY -= 1;
+
+            else if (doorPart.equals("BOTTOM"))
+                secondLocY += 1;
+        }
+
+        API.updateSQL("INSERT INTO locked_objects_list(loc_x, loc_y, loc_z, sec_loc_x, sec_loc_y, sec_loc_z, type, owner_id, level, created_at) values (" +
+                locX + ", " + locY + ", " + locZ + ", " + secondLocX + ", " + secondLocY + ", " + secondLocZ +
+                ", '" + block.getType().toString() + "', " + seggelinPlayer.id + ", " + newPadlockLevel + ", now());");
 
         int currentAmount = player.getInventory().getItemInMainHand().getAmount();
         player.getInventory().getItemInMainHand().setAmount(currentAmount - 1);
