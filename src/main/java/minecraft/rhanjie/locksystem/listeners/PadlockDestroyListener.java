@@ -23,7 +23,7 @@ public class PadlockDestroyListener implements Listener {
         Player player = event.getPlayer();
         Block block = event.getBlock();
 
-        if ((LockSystem.access).checkIfElementIsAvailable(config, block.getType().toString(), "lockableBlocks"))
+        if ((LockSystem.access).checkIfElementIsAvailable(config, block.getType().toString(), "lockableBlocks") == -1)
             return;
 
         String conditionWhere = LockSystem.access.getStandardConditionWhere(block.getLocation());

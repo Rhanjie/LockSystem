@@ -6,6 +6,9 @@ import minecraft.throk.api.SeggelinPlayer;
 import org.bukkit.ChatColor;
 import org.bukkit.Material;
 import org.bukkit.block.Block;
+import org.bukkit.block.Chest;
+import org.bukkit.block.DoubleChest;
+import org.bukkit.block.data.type.Door;
 import org.bukkit.configuration.file.FileConfiguration;
 import org.bukkit.entity.Player;
 import org.bukkit.event.EventHandler;
@@ -13,6 +16,7 @@ import org.bukkit.event.EventPriority;
 import org.bukkit.event.Listener;
 import org.bukkit.event.block.Action;
 import org.bukkit.event.player.PlayerInteractEvent;
+import org.bukkit.inventory.InventoryHolder;
 
 import java.sql.ResultSet;
 import java.sql.SQLException;
@@ -30,7 +34,7 @@ public class PadlockInteractionListener implements Listener {
 
         FileConfiguration config = LockSystem.access.getConfig();
 
-        if (!(LockSystem.access).checkIfElementIsAvailable(config, block.getType().toString(), "lockableBlocks"))
+        if ((LockSystem.access).checkIfElementIsAvailable(config, block.getType().toString(), "lockableBlocks") == -1)
             return;
 
         String uuid = player.getUniqueId().toString();
@@ -39,13 +43,14 @@ public class PadlockInteractionListener implements Listener {
         Material itemInHand = player.getInventory().getItemInMainHand().getType();
 
         String conditionWhere = LockSystem.access.getStandardConditionWhere(block.getLocation());
-        ResultSet result = API.selectSQL("SELECT player_list.uuid, player_list.name, level FROM locked_objects_list " +
+        ResultSet result = API.selectSQL("SELECT locked_objects_list.id, player_list.uuid, player_list.name, level FROM locked_objects_list " +
                 "INNER JOIN player_list ON locked_objects_list.owner_id = player_list.id WHERE " + conditionWhere);
 
         boolean isLocked = false;
         boolean playerIsOwner = false;
         String ownerName = player.getName();
 
+        int recordId = -1;
         int currentPadlockLevel = 1;
         int newPadlockLevel = 0;
         int picklockLevel = 0;
@@ -54,18 +59,21 @@ public class PadlockInteractionListener implements Listener {
             isLocked = result.next();
 
             if (isLocked) {
-                String uniqueID = player.getUniqueId().toString();
-                playerIsOwner = uniqueID.equals(result.getString(1));
+                recordId = result.getInt(1);
 
-                ownerName = result.getString(2);
-                currentPadlockLevel = result.getInt(3);
+                String uniqueID = player.getUniqueId().toString();
+                playerIsOwner = uniqueID.equals(result.getString(2));
+
+                ownerName = result.getString(3);
+                currentPadlockLevel = result.getInt(4);
             }
         } catch (SQLException exception) {
             exception.printStackTrace();
         }
 
-        if ((LockSystem.access).checkIfElementIsAvailable(config, itemInHand.toString(), "padlocks")) {
-            this.createPadlock(event, player, isLocked, playerIsOwner, currentPadlockLevel, newPadlockLevel, conditionWhere);
+        newPadlockLevel = (LockSystem.access).checkIfElementIsAvailable(config, itemInHand.toString(), "padlocks");
+        if (newPadlockLevel != -1) {
+            this.createPadlock(event, player, recordId, isLocked, playerIsOwner, currentPadlockLevel, newPadlockLevel);
 
             return;
         }
@@ -73,9 +81,10 @@ public class PadlockInteractionListener implements Listener {
         if (!isLocked)
             return;
 
-        if ((LockSystem.access).checkIfElementIsAvailable(config, itemInHand.toString(), "picklocks")) {
+        picklockLevel = (LockSystem.access).checkIfElementIsAvailable(config, itemInHand.toString(), "picklocks");
+        if (picklockLevel != -1) {
             if (!playerIsOwner) {
-                this.tryBreakPadlock(event, player, currentPadlockLevel, picklockLevel);
+                this.tryBreakPadlock(event, player, recordId, currentPadlockLevel, picklockLevel);
 
                 return;
             }
@@ -84,7 +93,7 @@ public class PadlockInteractionListener implements Listener {
         this.displayPadlockInfo(event, player, itemInHand, playerIsOwner, ownerName, currentPadlockLevel);
     }
 
-    private void createPadlock(PlayerInteractEvent event, Player player, boolean isLocked, boolean playerIsOwner, int currentPadlockLevel, int newPadlockLevel, String conditionWhere) {
+    private void createPadlock(PlayerInteractEvent event, Player player, int recordId, boolean isLocked, boolean playerIsOwner, int currentPadlockLevel, int newPadlockLevel) {
         if (isLocked) {
             if (!playerIsOwner) {
                 player.sendMessage(LockSystem.access.getMessage("lockable.notOwner"));
@@ -100,7 +109,7 @@ public class PadlockInteractionListener implements Listener {
                 return;
             }
 
-            API.updateSQL("UPDATE locked_objects_list SET level = " + newPadlockLevel + " WHERE " + conditionWhere);
+            API.updateSQL("UPDATE locked_objects_list SET level = " + newPadlockLevel + " WHERE id = " + recordId);
 
             int currentAmount = player.getInventory().getItemInMainHand().getAmount();
             player.getInventory().getItemInMainHand().setAmount(currentAmount - 1);
@@ -117,9 +126,23 @@ public class PadlockInteractionListener implements Listener {
         int loc_y = block.getLocation().getBlockY();
         int loc_z = block.getLocation().getBlockZ();
 
+        if (block instanceof DoubleChest) {
+            player.sendMessage(ChatColor.MAGIC + "Podwojna skrzynia!\n\n test");
+        }
+
         //TODO: Add support for double blocks like chests or doors
         API.updateSQL("INSERT INTO locked_objects_list(loc_x, loc_y, loc_z, type, owner_id, level, created_at) values (" +
                 loc_x + ", " + loc_y + ", " + loc_z + ", '" + block.getType().toString() + "', " + seggelinPlayer.id + ", " + newPadlockLevel + ", now());");
+
+        /*Chest chest = block; // The Chest blockstate of one of them.
+        InventoryHolder holder = chest.getInventory().getHolder();
+        if (holder instanceof DoubleChest) {
+            DoubleChest doubleChest = (DoubleChest) holder;
+            Chest leftChest = (Chest) doubleChest.getLeftSide();
+            Chest rightChest = (Chest) doubleChest.getRightSide();
+
+            leftChest.getBlock().getLocation()
+        }*/
 
         int currentAmount = player.getInventory().getItemInMainHand().getAmount();
         player.getInventory().getItemInMainHand().setAmount(currentAmount - 1);
@@ -128,7 +151,7 @@ public class PadlockInteractionListener implements Listener {
         event.setCancelled(true);
     }
 
-    private void tryBreakPadlock(PlayerInteractEvent event, Player player, int currentPadlockLevel, int picklockLevel) {
+    private void tryBreakPadlock(PlayerInteractEvent event, Player player, int recordId, int currentPadlockLevel, int picklockLevel) {
         Random random = new Random();
 
         //TODO: Wait for player skills system
@@ -140,8 +163,7 @@ public class PadlockInteractionListener implements Listener {
             return;
         }
 
-        String conditionWhere = LockSystem.access.getStandardConditionWhere(event.getClickedBlock().getLocation());
-        API.updateSQL("UPDATE locked_objects_list SET last_break_attempt = now() WHERE " + conditionWhere);
+        API.updateSQL("UPDATE locked_objects_list SET last_break_attempt = now() WHERE id = " + recordId);
         //TODO: Add information for [W]
 
         player.sendMessage(LockSystem.access.getMessage("lockable.breakFail"));
@@ -149,9 +171,13 @@ public class PadlockInteractionListener implements Listener {
     }
 
     private void displayPadlockInfo(PlayerInteractEvent event, Player player, Material itemInHand, boolean playerIsOwner, String ownerName, int currentPadlockLevel) {
-        if (playerIsOwner && itemInHand == Material.BOOK) {
-            player.sendMessage(LockSystem.access.getMessage("lockable.levelInfo") + ChatColor.GREEN + currentPadlockLevel);
-            player.sendMessage(LockSystem.access.getMessage("lockable.levelTip"));
+        if (playerIsOwner) {
+            if (itemInHand == Material.BOOK) {
+                player.sendMessage(LockSystem.access.getMessage("lockable.levelInfo") + ChatColor.GREEN + currentPadlockLevel);
+                player.sendMessage(LockSystem.access.getMessage("lockable.levelTip"));
+
+                event.setCancelled(true);
+            }
 
             return;
         }
