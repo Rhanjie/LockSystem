@@ -4,12 +4,15 @@ import minecraft.rhanjie.locksystem.LockSystem;
 import minecraft.throk.api.API;
 import org.bukkit.Material;
 import org.bukkit.block.Block;
+import org.bukkit.block.Chest;
+import org.bukkit.block.DoubleChest;
 import org.bukkit.configuration.file.FileConfiguration;
 import org.bukkit.entity.Player;
 import org.bukkit.event.EventHandler;
 import org.bukkit.event.EventPriority;
 import org.bukkit.event.Listener;
 import org.bukkit.event.block.BlockBreakEvent;
+import org.bukkit.inventory.InventoryHolder;
 import org.bukkit.inventory.ItemStack;
 
 import java.sql.ResultSet;
@@ -53,6 +56,30 @@ public class PadlockDestroyListener implements Listener {
 
             event.setCancelled(true);
             return;
+        }
+
+        if (block.getState() instanceof Chest) {
+            Chest chest = (Chest) block.getState();
+            InventoryHolder holder = chest.getInventory().getHolder();
+            if (holder instanceof DoubleChest) {
+                DoubleChest doubleChest = (DoubleChest) holder;
+                Chest secondPart = (Chest) doubleChest.getLeftSide();
+
+                if (secondPart != null) {
+                    if (block.getLocation().equals(secondPart.getLocation()))
+                        secondPart = (Chest) doubleChest.getRightSide();
+                }
+
+                if (secondPart != null) {
+                    int newLocX = secondPart.getBlock().getLocation().getBlock().getLocation().getBlockX();
+                    int newLocY = secondPart.getBlock().getLocation().getBlock().getLocation().getBlockY();
+                    int newLocZ = secondPart.getBlock().getLocation().getBlock().getLocation().getBlockZ();
+
+                    API.updateSQL("UPDATE locked_objects_list SET loc_x = " + newLocX + ", loc_y = " + newLocY + ", loc_z = " + newLocZ +
+                            ", sec_loc_x = null, sec_loc_y = null, sec_loc_z = null, destroy_guilty = '" + player.getName() +
+                            "', destroy_reason = 'Zniszczenie bloku' WHERE " + conditionWhere);
+                }
+            }
         }
 
         API.updateSQL("UPDATE locked_objects_list SET destroyed_at = now(), " +

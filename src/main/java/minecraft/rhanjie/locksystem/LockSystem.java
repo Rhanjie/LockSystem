@@ -1,5 +1,6 @@
 package minecraft.rhanjie.locksystem;
 
+import minecraft.rhanjie.locksystem.listeners.PadlockCloneListener;
 import minecraft.rhanjie.locksystem.listeners.PadlockDestroyListener;
 import minecraft.rhanjie.locksystem.listeners.PadlockInteractionListener;
 import minecraft.rhanjie.locksystem.utility.ConfigManager;
@@ -76,5 +77,6 @@ public class LockSystem extends JavaPlugin {
 
         manager.registerEvents(new PadlockInteractionListener(), this);
         manager.registerEvents(new PadlockDestroyListener(), this);
+        manager.registerEvents(new PadlockCloneListener(), this);
     }
 }

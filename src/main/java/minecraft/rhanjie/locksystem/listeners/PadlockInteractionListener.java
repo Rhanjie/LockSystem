@@ -130,7 +130,6 @@ public class PadlockInteractionListener implements Listener {
         Integer secondLocY = null;
         Integer secondLocZ = null;
 
-        //TODO: Add support for double blocks like chests or doors
         if (block.getState() instanceof Chest) {
             Chest chest = (Chest) block.getState();
             InventoryHolder holder = chest.getInventory().getHolder();

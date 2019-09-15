@@ -15,6 +15,9 @@ target/
 maven-repository/
 dependency-reduced-pom.xml
 
+# local dependency
+API.jar
+
 # vim
 .*.sw[a-p]
 
