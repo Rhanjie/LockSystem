@@ -4,10 +4,9 @@ import minecraft.rhanjie.locksystem.LockSystem;
 import minecraft.throk.api.API;
 import minecraft.throk.api.SeggelinPlayer;
 import org.bukkit.ChatColor;
+import org.bukkit.Location;
 import org.bukkit.Material;
 import org.bukkit.block.Block;
-import org.bukkit.block.Chest;
-import org.bukkit.block.DoubleChest;
 import org.bukkit.block.data.type.Door;
 import org.bukkit.configuration.file.FileConfiguration;
 import org.bukkit.entity.Player;
@@ -16,11 +15,11 @@ import org.bukkit.event.EventPriority;
 import org.bukkit.event.Listener;
 import org.bukkit.event.block.Action;
 import org.bukkit.event.player.PlayerInteractEvent;
-import org.bukkit.inventory.InventoryHolder;
 
 import java.sql.ResultSet;
 import java.sql.SQLException;
-import java.util.List;
+import java.text.SimpleDateFormat;
+import java.util.Date;
 import java.util.Random;
 
 public class PadlockInteractionListener implements Listener {
@@ -42,9 +41,37 @@ public class PadlockInteractionListener implements Listener {
 
         Material itemInHand = player.getInventory().getItemInMainHand().getType();
 
-        String conditionWhere = LockSystem.access.getStandardConditionWhere(block.getLocation());
-        ResultSet result = API.selectSQL("SELECT locked_objects_list.id, player_list.uuid, player_list.name, level FROM locked_objects_list " +
-                "INNER JOIN player_list ON locked_objects_list.owner_id = player_list.id WHERE " + conditionWhere);
+        //TODO: Refactor code below asap
+        ResultSet result = null;
+        Location secondLocation = LockSystem.access.getChestSecondPartLocation(block);
+        if (secondLocation != null) {
+            String conditionWhere = LockSystem.access.getDoubleConditionWhere(block.getLocation(), secondLocation);
+            result = API.selectSQL("SELECT locked_objects_list.id, player_list.uuid, player_list.name, level FROM locked_objects_list " +
+                    "INNER JOIN player_list ON locked_objects_list.owner_id = player_list.id WHERE " + conditionWhere);
+        }
+
+        else if (block.getBlockData() instanceof Door) {
+            Door door = (Door) block.getBlockData();
+            String doorPart = door.getHalf().toString();
+
+            secondLocation = block.getLocation();
+
+            if (doorPart.equals("TOP"))
+                secondLocation.setY(secondLocation.getBlockY() - 1);
+
+            else if (doorPart.equals("BOTTOM"))
+                secondLocation.setY(secondLocation.getBlockY() + 1);
+
+            String conditionWhere = LockSystem.access.getDoubleConditionWhere(block.getLocation(), secondLocation);
+            result = API.selectSQL("SELECT locked_objects_list.id, player_list.uuid, player_list.name, level FROM locked_objects_list " +
+                    "INNER JOIN player_list ON locked_objects_list.owner_id = player_list.id WHERE " + conditionWhere);
+        }
+
+        else {
+            String conditionWhere = LockSystem.access.getStandardConditionWhere(block.getLocation());
+            result = API.selectSQL("SELECT locked_objects_list.id, player_list.uuid, player_list.name, level FROM locked_objects_list " +
+                    "INNER JOIN player_list ON locked_objects_list.owner_id = player_list.id WHERE " + conditionWhere);
+        }
 
         boolean isLocked = false;
         boolean playerIsOwner = false;
@@ -126,48 +153,8 @@ public class PadlockInteractionListener implements Listener {
         int locY = block.getLocation().getBlockY();
         int locZ = block.getLocation().getBlockZ();
 
-        Integer secondLocX = null;
-        Integer secondLocY = null;
-        Integer secondLocZ = null;
-
-        if (block.getState() instanceof Chest) {
-            Chest chest = (Chest) block.getState();
-            InventoryHolder holder = chest.getInventory().getHolder();
-            if (holder instanceof DoubleChest) {
-                DoubleChest doubleChest = (DoubleChest) holder;
-                Chest secondPart = (Chest) doubleChest.getLeftSide();
-
-                if (secondPart != null) {
-                    if (block.getLocation().equals(secondPart.getLocation()))
-                        secondPart = (Chest) doubleChest.getRightSide();
-                }
-
-                if (secondPart != null) {
-                    secondLocX = secondPart.getBlock().getLocation().getBlock().getLocation().getBlockX();
-                    secondLocY = secondPart.getBlock().getLocation().getBlock().getLocation().getBlockY();
-                    secondLocZ = secondPart.getBlock().getLocation().getBlock().getLocation().getBlockZ();
-                }
-            }
-        }
-
-        else if (block.getBlockData() instanceof Door) {
-            Door door = (Door) block.getBlockData();
-            String doorPart = door.getHalf().toString();
-
-            secondLocX = locX;
-            secondLocY = locY;
-            secondLocZ = locZ;
-
-            if (doorPart.equals("TOP"))
-                secondLocY -= 1;
-
-            else if (doorPart.equals("BOTTOM"))
-                secondLocY += 1;
-        }
-
-        API.updateSQL("INSERT INTO locked_objects_list(loc_x, loc_y, loc_z, sec_loc_x, sec_loc_y, sec_loc_z, type, owner_id, level, created_at) values (" +
-                locX + ", " + locY + ", " + locZ + ", " + secondLocX + ", " + secondLocY + ", " + secondLocZ +
-                ", '" + block.getType().toString() + "', " + seggelinPlayer.id + ", " + newPadlockLevel + ", now());");
+        API.updateSQL("INSERT INTO locked_objects_list(loc_x, loc_y, loc_z, type, owner_id, level, created_at) values (" +
+                locX + ", " + locY + ", " + locZ + ", '" + block.getType().toString() + "', " + seggelinPlayer.id + ", " + newPadlockLevel + ", now());");
 
         int currentAmount = player.getInventory().getItemInMainHand().getAmount();
         player.getInventory().getItemInMainHand().setAmount(currentAmount - 1);
@@ -180,9 +167,16 @@ public class PadlockInteractionListener implements Listener {
         Random random = new Random();
 
         //TODO: Wait for player skills system
-        int playerLockpickingLevel = 12;
-        int chanceToSuccess = 10 - 50 * (currentPadlockLevel - picklockLevel); //+ player lockpicking level
+        int playerLockpickingLevel = random.nextInt(10);
+        int chanceToSuccess = 10 + (playerLockpickingLevel * 10) - 50 * (currentPadlockLevel - 1);
         if (random.nextInt(100) < chanceToSuccess) {
+            //TODO: Add break protection
+            Date datetime = new java.util.Date();
+            SimpleDateFormat format = new SimpleDateFormat("yyyy-MM-dd HH:mm:ss");
+
+            String currentTime = format.format(datetime);
+            //API.updateSQL("UPDATE locked_objects_list SET break_protection_time = " + currentTime + " WHERE id = " + recordId);
+
             player.sendMessage(LockSystem.access.getMessage("lockable.breakSuccess"));
 
             return;

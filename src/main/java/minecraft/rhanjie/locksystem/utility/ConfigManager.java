@@ -49,13 +49,14 @@ public class ConfigManager {
     private void createDefaultConfigIfNotExist() {
         config.options().copyDefaults(true);
 
-        ArrayList<String> lockableBlocks = Lists.newArrayList("chest", "dispenser", "oak_door");
+        ArrayList<String> lockableBlocks = Lists.newArrayList("chest", "dispenser", "dropper",
+                "oak_door", "spruce_door", "birch_door", "jungle_door", "acacia_door", "dark_oak_door");
         config.addDefault("lockableBlocks", lockableBlocks);
 
         ArrayList<String> padlocks = Lists.newArrayList("iron_block", "gold_block", "diamond_block");
         config.addDefault("padlocks", padlocks);
 
-        ArrayList<String> picklocks = Lists.newArrayList("shears", "wooden_pickaxe");
+        ArrayList<String> picklocks = Lists.newArrayList("shears");
         config.addDefault("picklocks", picklocks);
 
         plugin.saveConfig();

@@ -1,12 +1,15 @@
 package minecraft.rhanjie.locksystem;
 
-import minecraft.rhanjie.locksystem.listeners.PadlockCloneListener;
 import minecraft.rhanjie.locksystem.listeners.PadlockDestroyListener;
 import minecraft.rhanjie.locksystem.listeners.PadlockInteractionListener;
 import minecraft.rhanjie.locksystem.utility.ConfigManager;
 import minecraft.throk.api.API;
 import org.bukkit.Location;
+import org.bukkit.block.Block;
+import org.bukkit.block.Chest;
+import org.bukkit.block.DoubleChest;
 import org.bukkit.configuration.file.FileConfiguration;
+import org.bukkit.inventory.InventoryHolder;
 import org.bukkit.plugin.PluginManager;
 import org.bukkit.plugin.java.JavaPlugin;
 
@@ -41,8 +44,13 @@ public class LockSystem extends JavaPlugin {
         int loc_y = location.getBlockY();
         int loc_z = location.getBlockZ();
 
-        return "(loc_x = " + loc_x + " AND loc_y = " + loc_y + " AND loc_z = " + loc_z + " OR " +
-                "sec_loc_x = " + loc_x + " AND sec_loc_y = " + loc_y + " AND sec_loc_z = " + loc_z + ") AND destroyed_at IS NULL;";
+        return "loc_x = " + loc_x + " AND loc_y = " + loc_y + " AND loc_z = " + loc_z + " AND destroyed_at IS NULL;";
+    }
+
+    public String getDoubleConditionWhere(Location firstPartLoc, Location secondPartLoc) {
+        return  "(loc_x = " + firstPartLoc.getBlockX() + " AND loc_y = " + firstPartLoc.getBlockY() + " AND loc_z = " + firstPartLoc.getBlockZ() +
+                " OR loc_x = " + secondPartLoc.getBlockX() + " AND loc_y = " + secondPartLoc.getBlockY() + " AND loc_z = " + secondPartLoc.getBlockZ() +
+                ") AND destroyed_at IS NULL;";
     }
 
     public int checkIfElementIsAvailable(FileConfiguration config, String findingPhrase, String configId) {
@@ -59,11 +67,34 @@ public class LockSystem extends JavaPlugin {
         return -1;
     }
 
+    public Location getChestSecondPartLocation(Block block) {
+        if (block.getState() instanceof Chest) {
+            Chest chest = (Chest) block.getState();
+            InventoryHolder holder = chest.getInventory().getHolder();
+            if (holder instanceof DoubleChest) {
+                DoubleChest doubleChest = (DoubleChest) holder;
+                Chest secondPart = (Chest) doubleChest.getLeftSide();
+
+                if (secondPart != null) {
+                    if (block.getLocation().equals(secondPart.getLocation()))
+                        secondPart = (Chest) doubleChest.getRightSide();
+                }
+
+                if (secondPart != null) {
+                    return secondPart.getBlock().getLocation();
+                }
+            }
+        }
+
+        return null;
+    }
+
     private void prepareMySqlTable() {
         API.updateSQL("CREATE TABLE IF NOT EXISTS locked_objects_list(id int AUTO_INCREMENT NOT NULL PRIMARY KEY," +
-                "loc_x int NOT NULL, loc_y int NOT NULL, loc_z int NOT NULL, sec_loc_x int, sec_loc_y int, sec_loc_z int," +
+                "loc_x int NOT NULL, loc_y int NOT NULL, loc_z int NOT NULL, " +
                 "type varchar(255) NOT NULL, owner_id int NOT NULL, level int NOT NULL, " +
-                "created_at datetime NOT NULL, last_break_attempt datetime, destroyed_at datetime, destroy_guilty varchar(255), destroy_reason varchar(255), " +
+                "created_at datetime NOT NULL, last_break_attempt datetime, break_protection_time datetime, " +
+                "destroyed_at datetime, destroy_guilty varchar(255), destroy_reason varchar(255), " +
                 "KEY owner_id (owner_id), FOREIGN KEY (owner_id) REFERENCES player_list(id))" +
                 "ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;");
     }
@@ -77,6 +108,5 @@ public class LockSystem extends JavaPlugin {
 
         manager.registerEvents(new PadlockInteractionListener(), this);
         manager.registerEvents(new PadlockDestroyListener(), this);
-        manager.registerEvents(new PadlockCloneListener(), this);
     }
 }
