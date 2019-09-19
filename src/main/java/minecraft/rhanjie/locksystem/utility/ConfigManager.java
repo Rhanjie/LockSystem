@@ -73,6 +73,7 @@ public class ConfigManager {
         messages.addDefault("lockable.notOwner", ChatColor.RED + "Nie masz dostepu do klodki!");
 
         messages.addDefault("lockable.createSuccess", ChatColor.GREEN + "Klodka zalozona!");
+        messages.addDefault("lockable.removeSuccess", ChatColor.GREEN + "Klodka pomyslnie usunieta!");
         messages.addDefault("lockable.improveSuccess", ChatColor.GREEN + "Klodka ulepszona!");
         messages.addDefault("lockable.improveFail", ChatColor.RED + "Probujesz zalozyc gorsza lub taka sama klodke!");
 
