@@ -1,5 +1,6 @@
 package minecraft.rhanjie.locksystem;
 
+import minecraft.rhanjie.locksystem.commands.PluginCommand;
 import minecraft.rhanjie.locksystem.listeners.PadlockDestroyListener;
 import minecraft.rhanjie.locksystem.listeners.PadlockInteractionListener;
 import minecraft.rhanjie.locksystem.utility.ConfigManager;
@@ -126,7 +127,7 @@ public class LockSystem extends JavaPlugin {
     }
 
     private void registerCommands() {
-        //...
+        this.getCommand("klodka").setExecutor(new PluginCommand());
     }
 
     private void registerListeners() {

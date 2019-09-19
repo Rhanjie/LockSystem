@@ -6,6 +6,7 @@ import minecraft.throk.api.SeggelinPlayer;
 import org.bukkit.ChatColor;
 import org.bukkit.Location;
 import org.bukkit.Material;
+import org.bukkit.Sound;
 import org.bukkit.block.Block;
 import org.bukkit.block.Chest;
 import org.bukkit.block.data.type.Door;
@@ -146,7 +147,7 @@ public class PadlockInteractionListener implements Listener {
         }
 
         //TODO: Wait for player skills system
-        int playerLockpickingLevel = random.nextInt(10);
+        int playerLockpickingLevel = random.nextInt(10);        // If the player (or console) uses our command correct, we can return true
         int chanceToSuccess = 10 + (playerLockpickingLevel * 10) - 50 * (currentPadlockLevel - 1);
         if (random.nextInt(100) < chanceToSuccess) {
             //TODO: Add break protection
@@ -164,6 +165,10 @@ public class PadlockInteractionListener implements Listener {
         API.updateSQL("UPDATE locked_objects_list SET last_break_attempt = now() WHERE id = " + recordId);
         //TODO: Add information for [W]
 
+        int amount = player.getInventory().getItemInMainHand().getAmount();
+        player.getInventory().getItemInMainHand().setAmount(amount - 1);
+
+        player.playSound(event.getClickedBlock().getLocation(), Sound.BLOCK_ANVIL_BREAK, 5.0F, 1F);
         player.sendMessage(LockSystem.access.getMessage("lockable.breakFail"));
         event.setCancelled(true);
     }
