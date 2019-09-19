@@ -5,6 +5,8 @@ import minecraft.throk.api.API;
 import org.bukkit.Location;
 import org.bukkit.Material;
 import org.bukkit.block.Block;
+import org.bukkit.block.Chest;
+import org.bukkit.block.data.type.Door;
 import org.bukkit.configuration.file.FileConfiguration;
 import org.bukkit.entity.Player;
 import org.bukkit.event.EventHandler;
@@ -27,7 +29,7 @@ public class PadlockDestroyListener implements Listener {
         if ((LockSystem.access).checkIfElementIsAvailable(config, block.getType().toString(), "lockableBlocks") == -1)
             return;
 
-        String conditionWhere = LockSystem.access.getStandardConditionWhere(block.getLocation());
+        String conditionWhere = (LockSystem.access).getAutomaticConditionWhere(block);
         ResultSet result = API.selectSQL("SELECT player_list.uuid, level FROM locked_objects_list " +
                 "INNER JOIN player_list ON locked_objects_list.owner_id = player_list.id WHERE " + conditionWhere);
 
@@ -55,12 +57,14 @@ public class PadlockDestroyListener implements Listener {
             return;
         }
 
-        Location location = LockSystem.access.getChestSecondPartLocation(block);
-        if (location != null) {
-            API.updateSQL("UPDATE locked_objects_list SET loc_x = " + location.getBlockX() +
-                    ", loc_y = " + location.getBlockY() + ", loc_z = " + location.getBlockZ() + " WHERE " + conditionWhere);
+        if (block.getState() instanceof Chest) {
+            Location location = LockSystem.access.getChestSecondPartLocation((Chest) block.getState());
+            if (location != null) {
+                API.updateSQL("UPDATE locked_objects_list SET loc_x = " + location.getBlockX() +
+                        ", loc_y = " + location.getBlockY() + ", loc_z = " + location.getBlockZ() + " WHERE " + conditionWhere);
 
-            return;
+                return;
+            }
         }
 
         API.updateSQL("UPDATE locked_objects_list SET destroyed_at = now(), " +

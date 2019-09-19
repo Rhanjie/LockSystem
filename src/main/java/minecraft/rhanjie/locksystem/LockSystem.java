@@ -8,6 +8,7 @@ import org.bukkit.Location;
 import org.bukkit.block.Block;
 import org.bukkit.block.Chest;
 import org.bukkit.block.DoubleChest;
+import org.bukkit.block.data.type.Door;
 import org.bukkit.configuration.file.FileConfiguration;
 import org.bukkit.inventory.InventoryHolder;
 import org.bukkit.plugin.PluginManager;
@@ -39,18 +40,21 @@ public class LockSystem extends JavaPlugin {
     }
 
     //TODO: Move code below to utils file
-    public String getStandardConditionWhere(Location location) {
-        int loc_x = location.getBlockX();
-        int loc_y = location.getBlockY();
-        int loc_z = location.getBlockZ();
+    public String getAutomaticConditionWhere(Block block) {
+        if (block.getState() instanceof Chest) {
+            Location secondLocation = LockSystem.access.getChestSecondPartLocation((Chest) block.getState());
 
-        return "loc_x = " + loc_x + " AND loc_y = " + loc_y + " AND loc_z = " + loc_z + " AND destroyed_at IS NULL;";
-    }
+            if (secondLocation != null)
+                return LockSystem.access.getDoubleConditionWhere(block.getLocation(), secondLocation);
+        }
 
-    public String getDoubleConditionWhere(Location firstPartLoc, Location secondPartLoc) {
-        return  "(loc_x = " + firstPartLoc.getBlockX() + " AND loc_y = " + firstPartLoc.getBlockY() + " AND loc_z = " + firstPartLoc.getBlockZ() +
-                " OR loc_x = " + secondPartLoc.getBlockX() + " AND loc_y = " + secondPartLoc.getBlockY() + " AND loc_z = " + secondPartLoc.getBlockZ() +
-                ") AND destroyed_at IS NULL;";
+        if (block.getBlockData() instanceof Door) {
+            Location secondLocation = LockSystem.access.getDoorSecondPartLocation((Door) block.getBlockData(), block.getLocation());
+
+            return LockSystem.access.getDoubleConditionWhere(block.getLocation(), secondLocation);
+        }
+
+        return LockSystem.access.getStandardConditionWhere(block.getLocation());
     }
 
     public int checkIfElementIsAvailable(FileConfiguration config, String findingPhrase, String configId) {
@@ -67,26 +71,48 @@ public class LockSystem extends JavaPlugin {
         return -1;
     }
 
-    public Location getChestSecondPartLocation(Block block) {
-        if (block.getState() instanceof Chest) {
-            Chest chest = (Chest) block.getState();
-            InventoryHolder holder = chest.getInventory().getHolder();
-            if (holder instanceof DoubleChest) {
-                DoubleChest doubleChest = (DoubleChest) holder;
-                Chest secondPart = (Chest) doubleChest.getLeftSide();
+    public Location getChestSecondPartLocation(Chest chest) {
+        InventoryHolder holder = chest.getInventory().getHolder();
+        if (holder instanceof DoubleChest) {
+            DoubleChest doubleChest = (DoubleChest) holder;
+            Chest secondPart = (Chest) doubleChest.getLeftSide();
 
-                if (secondPart != null) {
-                    if (block.getLocation().equals(secondPart.getLocation()))
-                        secondPart = (Chest) doubleChest.getRightSide();
-                }
+            if (doubleChest.getLeftSide() == null && doubleChest.getRightSide() == null)
+                return null;
 
-                if (secondPart != null) {
-                    return secondPart.getBlock().getLocation();
-                }
-            }
+            if (chest.getBlock().getLocation().equals(secondPart.getLocation()))
+                secondPart = (Chest) doubleChest.getRightSide();
+
+            return secondPart.getBlock().getLocation();
         }
 
         return null;
+    }
+
+    private Location getDoorSecondPartLocation(Door door, Location secondLocation) {
+        String doorPart = door.getHalf().toString();
+
+        if (doorPart.equals("TOP"))
+            secondLocation.setY(secondLocation.getBlockY() - 1);
+
+        else if (doorPart.equals("BOTTOM"))
+            secondLocation.setY(secondLocation.getBlockY() + 1);
+
+        return secondLocation;
+    }
+
+    private String getStandardConditionWhere(Location location) {
+        int loc_x = location.getBlockX();
+        int loc_y = location.getBlockY();
+        int loc_z = location.getBlockZ();
+
+        return "loc_x = " + loc_x + " AND loc_y = " + loc_y + " AND loc_z = " + loc_z + " AND destroyed_at IS NULL;";
+    }
+
+    private String getDoubleConditionWhere(Location firstPartLoc, Location secondPartLoc) {
+        return  "(loc_x = " + firstPartLoc.getBlockX() + " AND loc_y = " + firstPartLoc.getBlockY() + " AND loc_z = " + firstPartLoc.getBlockZ() +
+                " OR loc_x = " + secondPartLoc.getBlockX() + " AND loc_y = " + secondPartLoc.getBlockY() + " AND loc_z = " + secondPartLoc.getBlockZ() +
+                ") AND destroyed_at IS NULL;";
     }
 
     private void prepareMySqlTable() {

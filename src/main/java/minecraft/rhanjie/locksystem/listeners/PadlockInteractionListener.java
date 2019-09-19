@@ -7,6 +7,7 @@ import org.bukkit.ChatColor;
 import org.bukkit.Location;
 import org.bukkit.Material;
 import org.bukkit.block.Block;
+import org.bukkit.block.Chest;
 import org.bukkit.block.data.type.Door;
 import org.bukkit.configuration.file.FileConfiguration;
 import org.bukkit.entity.Player;
@@ -32,7 +33,6 @@ public class PadlockInteractionListener implements Listener {
             return;
 
         FileConfiguration config = LockSystem.access.getConfig();
-
         if ((LockSystem.access).checkIfElementIsAvailable(config, block.getType().toString(), "lockableBlocks") == -1)
             return;
 
@@ -41,37 +41,9 @@ public class PadlockInteractionListener implements Listener {
 
         Material itemInHand = player.getInventory().getItemInMainHand().getType();
 
-        //TODO: Refactor code below asap
-        ResultSet result = null;
-        Location secondLocation = LockSystem.access.getChestSecondPartLocation(block);
-        if (secondLocation != null) {
-            String conditionWhere = LockSystem.access.getDoubleConditionWhere(block.getLocation(), secondLocation);
-            result = API.selectSQL("SELECT locked_objects_list.id, player_list.uuid, player_list.name, level FROM locked_objects_list " +
-                    "INNER JOIN player_list ON locked_objects_list.owner_id = player_list.id WHERE " + conditionWhere);
-        }
-
-        else if (block.getBlockData() instanceof Door) {
-            Door door = (Door) block.getBlockData();
-            String doorPart = door.getHalf().toString();
-
-            secondLocation = block.getLocation();
-
-            if (doorPart.equals("TOP"))
-                secondLocation.setY(secondLocation.getBlockY() - 1);
-
-            else if (doorPart.equals("BOTTOM"))
-                secondLocation.setY(secondLocation.getBlockY() + 1);
-
-            String conditionWhere = LockSystem.access.getDoubleConditionWhere(block.getLocation(), secondLocation);
-            result = API.selectSQL("SELECT locked_objects_list.id, player_list.uuid, player_list.name, level FROM locked_objects_list " +
-                    "INNER JOIN player_list ON locked_objects_list.owner_id = player_list.id WHERE " + conditionWhere);
-        }
-
-        else {
-            String conditionWhere = LockSystem.access.getStandardConditionWhere(block.getLocation());
-            result = API.selectSQL("SELECT locked_objects_list.id, player_list.uuid, player_list.name, level FROM locked_objects_list " +
-                    "INNER JOIN player_list ON locked_objects_list.owner_id = player_list.id WHERE " + conditionWhere);
-        }
+        String conditionWhere = (LockSystem.access).getAutomaticConditionWhere(block);
+        ResultSet result = API.selectSQL("SELECT locked_objects_list.id, player_list.uuid, player_list.name, level FROM locked_objects_list " +
+                "INNER JOIN player_list ON locked_objects_list.owner_id = player_list.id WHERE " + conditionWhere);
 
         boolean isLocked = false;
         boolean playerIsOwner = false;
@@ -165,6 +137,13 @@ public class PadlockInteractionListener implements Listener {
 
     private void tryBreakPadlock(PlayerInteractEvent event, Player player, int recordId, int currentPadlockLevel, int picklockLevel) {
         Random random = new Random();
+
+        if (event.getClickedBlock().getBlockData() instanceof Door) {
+            Door door = (Door) event.getClickedBlock().getBlockData();
+
+            if (door.isOpen())
+                return;
+        }
 
         //TODO: Wait for player skills system
         int playerLockpickingLevel = random.nextInt(10);

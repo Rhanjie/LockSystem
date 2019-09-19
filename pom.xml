@@ -6,7 +6,7 @@
 
     <groupId>minecraft.rhanjie</groupId>
     <artifactId>LockSystem</artifactId>
-    <version>1.1</version>
+    <version>1.2</version>
 
     <repositories>
         <repository>
