@@ -147,7 +147,7 @@ public class PadlockInteractionListener implements Listener {
         }
 
         //TODO: Wait for player skills system
-        int playerLockpickingLevel = random.nextInt(10);        // If the player (or console) uses our command correct, we can return true
+        int playerLockpickingLevel = random.nextInt(10);
         int chanceToSuccess = 10 + (playerLockpickingLevel * 10) - 50 * (currentPadlockLevel - 1);
         if (random.nextInt(100) < chanceToSuccess) {
             //TODO: Add break protection
@@ -168,7 +168,7 @@ public class PadlockInteractionListener implements Listener {
         int amount = player.getInventory().getItemInMainHand().getAmount();
         player.getInventory().getItemInMainHand().setAmount(amount - 1);
 
-        player.playSound(event.getClickedBlock().getLocation(), Sound.BLOCK_ANVIL_BREAK, 5.0F, 1F);
+        player.playSound(event.getClickedBlock().getLocation(), Sound.BLOCK_ANVIL_USE, 100.0F, 1F);
         player.sendMessage(LockSystem.access.getMessage("lockable.breakFail"));
         event.setCancelled(true);
     }
