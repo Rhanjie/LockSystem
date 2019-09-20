@@ -23,6 +23,7 @@ import java.sql.SQLException;
 import java.text.SimpleDateFormat;
 import java.util.Date;
 import java.util.Random;
+import java.util.UUID;
 
 public class PadlockInteractionListener implements Listener {
     @EventHandler(priority = EventPriority.LOW)
@@ -90,7 +91,7 @@ public class PadlockInteractionListener implements Listener {
             }
         }
 
-        this.displayPadlockInfo(event, player, itemInHand, playerIsOwner, ownerName, currentPadlockLevel);
+        this.displayPadlockInfo(event, player, itemInHand, playerIsOwner, ownerName, recordId, currentPadlockLevel);
     }
 
     private void createPadlock(PlayerInteractEvent event, Player player, int recordId, boolean isLocked, boolean playerIsOwner, int currentPadlockLevel, int newPadlockLevel) {
@@ -173,7 +174,7 @@ public class PadlockInteractionListener implements Listener {
         event.setCancelled(true);
     }
 
-    private void displayPadlockInfo(PlayerInteractEvent event, Player player, Material itemInHand, boolean playerIsOwner, String ownerName, int currentPadlockLevel) {
+    private void displayPadlockInfo(PlayerInteractEvent event, Player player, Material itemInHand, boolean playerIsOwner, String ownerName, int recordId, int currentPadlockLevel) {
         if (playerIsOwner) {
             if (itemInHand == Material.BOOK) {
                 player.sendMessage(LockSystem.access.getMessage("lockable.levelInfo") + ChatColor.GREEN + currentPadlockLevel);
@@ -184,6 +185,23 @@ public class PadlockInteractionListener implements Listener {
 
             return;
         }
+
+        //TODO:
+        ResultSet result = API.selectSQL("SELECT uuid FROM locked_objects_members_list WHERE locked_object_id = " + recordId);
+        boolean padlockMember = false;
+
+        try {
+            while (result.next()) {
+                UUID memberUuid = UUID.fromString(result.getString(1));
+                if (player.getUniqueId().equals(memberUuid))
+                    padlockMember = true;
+            }
+        } catch(SQLException exception) {
+            exception.printStackTrace();
+        }
+
+        if (padlockMember)
+            return;
 
         player.sendMessage(LockSystem.access.getMessage("lockable.ownerInfo") + ChatColor.RED + ownerName);
         player.sendMessage(LockSystem.access.getMessage("lockable.padlockInfo"));
