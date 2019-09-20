@@ -21,28 +21,29 @@ import java.util.UUID;
 
 public class PluginCommand implements CommandExecutor {
     public boolean onCommand(CommandSender sender, Command command, String label, String[] args) {
-        if (args.length == 1) {
-            if (args[0].equalsIgnoreCase("info"))
-                return infoCommand(sender);
+        if (args.length == 0)
+            return false;
 
-            if (args[0].equalsIgnoreCase("reload"))
-                return reloadCommand(sender);
+        if (args[0].equalsIgnoreCase("info"))
+            return infoCommand(sender);
 
-            if (args[0].equalsIgnoreCase("usun_klodke"))
-                return removePadlockCommand(sender);
+        if (args[0].equalsIgnoreCase("reload"))
+            return reloadCommand(sender);
 
-            if (args[0].equalsIgnoreCase("dodaj"))
-                return addMember(sender, args);
+        if (args[0].equalsIgnoreCase("usun"))
+            return removePadlockCommand(sender);
 
-            if (args[0].equalsIgnoreCase("usun"))
-                return removeMember(sender, args);
+        if (args[0].equalsIgnoreCase("dodaj_czlonka"))
+            return addMember(sender, args);
 
-            if (args[0].equalsIgnoreCase("dodaj_gildie"))
-                return addGuild(sender, args);
+        if (args[0].equalsIgnoreCase("usun_czlonka"))
+            return removeMember(sender, args);
 
-            if (args[0].equalsIgnoreCase("usun_gildie"))
-                return removeGuild(sender, args);
-        }
+        if (args[0].equalsIgnoreCase("dodaj_gildie"))
+            return addGuild(sender, args);
+
+        if (args[0].equalsIgnoreCase("usun_gildie"))
+            return removeGuild(sender, args);
 
         return false;
     }
@@ -160,6 +161,63 @@ public class PluginCommand implements CommandExecutor {
     }
 
     private boolean addMember(CommandSender sender, String[] args) {
+        if (!(sender instanceof Player)) {
+            sender.sendMessage("Musisz byc graczem, aby uzyc tej komendy!");
+
+            return false;
+        }
+
+        if (args.length != 2) {
+            sender.sendMessage("Podaj nick dodawanego czlonka");
+            return false;
+        }
+
+        Player player = (Player) sender;
+        Block block = player.getTargetBlock(null, 10);
+
+        player.sendMessage(block.getType().toString());
+
+        //TODO: Wait for convertNameToUuid method in API
+        String memberUuid = Bukkit.getOfflinePlayer(args[1]).getUniqueId().toString();
+
+        FileConfiguration config = LockSystem.access.getConfig();
+        if ((LockSystem.access).checkIfElementIsAvailable(config, block.getType().toString(), "lockableBlocks") == -1)
+            return false;
+
+        String conditionWhere = (LockSystem.access).getAutomaticConditionWhere(block);
+        ResultSet result = API.selectSQL("SELECT locked_objects_list.id, player_list.uuid, level FROM locked_objects_list " +
+                "INNER JOIN player_list ON locked_objects_list.owner_id = player_list.id WHERE " + conditionWhere);
+
+        boolean isLocked = false;
+        boolean playerIsOwner = false;
+        int padlockId = 0;
+
+        try {
+            isLocked = result.next();
+
+            if (!isLocked)
+                return false;
+
+            padlockId = result.getInt(1);
+
+            String playerUuid = player.getUniqueId().toString();
+            UUID ownerUuid = UUID.fromString(result.getString(2));
+
+            playerIsOwner = playerUuid.equals(ownerUuid.toString());
+        } catch (SQLException exception) {
+            exception.printStackTrace();
+            return false;
+        }
+
+        if (!playerIsOwner) {
+            player.sendMessage(LockSystem.access.getMessage("lockable.notOwner"));
+
+            return false;
+        }
+
+        API.updateSQL("INSERT INTO locked_objects_members_list(locked_object_id, uuid, added_at) " +
+                "values (" + padlockId + ", '" + memberUuid + "', now());");
+
         return true;
     }
 

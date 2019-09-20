@@ -117,12 +117,17 @@ public class LockSystem extends JavaPlugin {
     }
 
     private void prepareMySqlTable() {
-        API.updateSQL("CREATE TABLE IF NOT EXISTS locked_objects_list(id int AUTO_INCREMENT NOT NULL PRIMARY KEY," +
+        API.updateSQL("CREATE TABLE IF NOT EXISTS locked_objects_list(id int AUTO_INCREMENT NOT NULL PRIMARY KEY, " +
                 "loc_x int NOT NULL, loc_y int NOT NULL, loc_z int NOT NULL, " +
                 "type varchar(255) NOT NULL, owner_id int NOT NULL, level int NOT NULL, " +
                 "created_at datetime NOT NULL, last_break_attempt datetime, break_protection_time datetime, " +
                 "destroyed_at datetime, destroy_guilty varchar(255), destroy_reason varchar(255), " +
-                "KEY owner_id (owner_id), FOREIGN KEY (owner_id) REFERENCES player_list(id))" +
+                "KEY owner_id (owner_id), FOREIGN KEY (owner_id) REFERENCES player_list(id)) " +
+                "ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;");
+
+        API.updateSQL("CREATE TABLE IF NOT EXISTS locked_objects_members_list(id int AUTO_INCREMENT NOT NULL PRIMARY KEY, " +
+                "locked_object_id int NOT NULL, uuid varchar(255) NOT NULL, added_at datetime NOT NULL, " +
+                "KEY locked_object_id (locked_object_id), FOREIGN KEY (locked_object_id) REFERENCES locked_objects_list(id)) " +
                 "ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;");
     }
 
