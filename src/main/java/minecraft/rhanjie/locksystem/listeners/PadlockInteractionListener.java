@@ -3,10 +3,7 @@ package minecraft.rhanjie.locksystem.listeners;
 import minecraft.rhanjie.locksystem.LockSystem;
 import minecraft.throk.api.API;
 import minecraft.throk.api.SeggelinPlayer;
-import org.bukkit.ChatColor;
-import org.bukkit.Location;
-import org.bukkit.Material;
-import org.bukkit.Sound;
+import org.bukkit.*;
 import org.bukkit.block.Block;
 import org.bukkit.block.Chest;
 import org.bukkit.block.data.type.Door;
@@ -21,6 +18,7 @@ import org.bukkit.event.player.PlayerInteractEvent;
 import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.text.SimpleDateFormat;
+import java.util.ArrayList;
 import java.util.Date;
 import java.util.Random;
 import java.util.UUID;
@@ -175,29 +173,38 @@ public class PadlockInteractionListener implements Listener {
     }
 
     private void displayPadlockInfo(PlayerInteractEvent event, Player player, Material itemInHand, boolean playerIsOwner, String ownerName, int recordId, int currentPadlockLevel) {
-        if (playerIsOwner) {
-            if (itemInHand == Material.BOOK) {
-                player.sendMessage(LockSystem.access.getMessage("lockable.levelInfo") + ChatColor.GREEN + currentPadlockLevel);
-                player.sendMessage(LockSystem.access.getMessage("lockable.levelTip"));
+        ArrayList<UUID> members = new ArrayList<UUID>();
 
-                event.setCancelled(true);
-            }
-
-            return;
-        }
-
-        //TODO:
         ResultSet result = API.selectSQL("SELECT uuid FROM locked_objects_members_list WHERE locked_object_id = " + recordId);
         boolean padlockMember = false;
 
         try {
             while (result.next()) {
                 UUID memberUuid = UUID.fromString(result.getString(1));
+                members.add(memberUuid);
+
                 if (player.getUniqueId().equals(memberUuid))
                     padlockMember = true;
             }
         } catch(SQLException exception) {
             exception.printStackTrace();
+        }
+
+        if (playerIsOwner) {
+            if (itemInHand == Material.BOOK) {
+                String message = "";
+                message += ChatColor.GREEN + "Właściciel: " + ChatColor.GOLD + "Ty\n";
+                message += ChatColor.GREEN + LockSystem.access.getMessage("lockable.levelInfo") + ChatColor.GOLD + currentPadlockLevel + "\n";
+                message += ChatColor.RESET + "Osoby majace dostep:\n" + ChatColor.GOLD;
+                for (UUID uuid : members) {
+                    message += "- " + Bukkit.getOfflinePlayer(uuid).getName() + "\n";
+                }
+
+                player.sendMessage(message);
+                event.setCancelled(true);
+            }
+
+            return;
         }
 
         if (padlockMember)

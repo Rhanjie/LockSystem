@@ -16,6 +16,7 @@ import org.bukkit.inventory.ItemStack;
 
 import java.sql.ResultSet;
 import java.sql.SQLException;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.UUID;
 
@@ -77,6 +78,7 @@ public class PluginCommand implements CommandExecutor {
         ResultSet result = API.selectSQL("SELECT locked_objects_list.id, player_list.uuid, level FROM locked_objects_list " +
                 "INNER JOIN player_list ON locked_objects_list.owner_id = player_list.id WHERE " + conditionWhere);
 
+        int recordId = 0;
         boolean isLocked = false;
         boolean playerIsOwner = false;
         int currentPadlockLevel = 0;
@@ -87,6 +89,8 @@ public class PluginCommand implements CommandExecutor {
 
             if (!isLocked)
                 return false;
+
+            recordId = result.getInt(1);
 
             String playerUuid = player.getUniqueId().toString();
             UUID ownerUuid = UUID.fromString(result.getString(2));
@@ -100,9 +104,32 @@ public class PluginCommand implements CommandExecutor {
         }
 
         if (playerIsOwner) {
-            player.sendMessage(LockSystem.access.getMessage("lockable.levelInfo") + ChatColor.GREEN + currentPadlockLevel);
-            player.sendMessage(LockSystem.access.getMessage("lockable.levelTip"));
+            ArrayList<UUID> members = new ArrayList<UUID>();
 
+            ResultSet membersResult = API.selectSQL("SELECT uuid FROM locked_objects_members_list WHERE locked_object_id = " + recordId);
+            boolean padlockMember = false;
+
+            try {
+                while (membersResult.next()) {
+                    UUID memberUuid = UUID.fromString(membersResult.getString(1));
+                    members.add(memberUuid);
+
+                    if (player.getUniqueId().equals(memberUuid))
+                        padlockMember = true;
+                }
+            } catch(SQLException exception) {
+                exception.printStackTrace();
+            }
+
+            String message = "";
+            message += ChatColor.GREEN + "Właściciel: " + ChatColor.GOLD + "Ty\n";
+            message += ChatColor.GREEN + LockSystem.access.getMessage("lockable.levelInfo") + ChatColor.GOLD + currentPadlockLevel + "\n";
+            message += ChatColor.RESET + "Osoby majace dostep:\n" + ChatColor.GOLD;
+            for (UUID uuid : members) {
+                message += "- " + Bukkit.getOfflinePlayer(uuid).getName() + "\n";
+            }
+
+            player.sendMessage(message);
             return true;
         }
 
