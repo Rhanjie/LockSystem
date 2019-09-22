@@ -2,6 +2,11 @@ package minecraft.rhanjie.locksystem.commands;
 
 import minecraft.rhanjie.locksystem.LockSystem;
 import minecraft.throk.api.API;
+import minecraft.throk.api.SeggelinPlayer;
+import minecraft.throk.api.database.UpdateQuery;
+import minecraft.throk.api.database.repositories.PlayerRepository;
+import minecraft.throk.api.exceptions.EntityNotFound;
+import minecraft.throk.api.exceptions.RepositoryRequired;
 import org.bukkit.Bukkit;
 import org.bukkit.ChatColor;
 import org.bukkit.Material;
@@ -14,8 +19,11 @@ import org.bukkit.configuration.file.FileConfiguration;
 import org.bukkit.entity.Player;
 import org.bukkit.inventory.ItemStack;
 
+import javax.management.Query;
+import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.sql.SQLException;
+import java.sql.Statement;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.UUID;
@@ -254,14 +262,38 @@ public class PluginCommand implements CommandExecutor {
             return false;
         }
 
+
+        PlayerRepository playerRepository = null;
+        try {
+            playerRepository = (PlayerRepository) API.getRepository(PlayerRepository.class);
+        }
+
+        catch (RepositoryRequired exception) {
+            exception.printStackTrace();
+            return false;
+        }
+
         for (int i = 1; i < args.length; i += 1) {
-            //TODO: Wait for convertNameToUuid method in API
-            String memberUuid = Bukkit.getOfflinePlayer(args[i]).getUniqueId().toString();
+            try {
+                SeggelinPlayer seggelinPlayer = playerRepository.getPlayerByName(args[i]);
+                UpdateQuery query = (UpdateQuery) API.getDatabase().updateQuery();
 
-            //TODO: Check if player has ever logged
+                //TODO: Generated keys not requested. Specify return generated keys
+                PreparedStatement statement = query.setQuery("INSERT INTO locked_objects_members_list" +
+                        "(locked_object_id, uuid, added_at) values (?, ?, now());");
+                statement.setInt(1, padlockId);
+                statement.setString(2, seggelinPlayer.uuid);
 
-            API.updateSQL("INSERT INTO locked_objects_members_list(locked_object_id, uuid, added_at) " +
-                    "values (" + padlockId + ", '" + memberUuid + "', now());");
+                query.execute();
+            }
+
+            catch (EntityNotFound notFoundException) {
+                player.sendMessage(ChatColor.RED + "Nie znaleziono gracza " + ChatColor.RESET + args[i] + ChatColor.RED + "!");
+            }
+
+            catch (SQLException exception) {
+                exception.printStackTrace();
+            }
         }
 
         player.sendMessage(ChatColor.GREEN + "Pomyslnie dodano ludzi do klodki!");
@@ -321,19 +353,37 @@ public class PluginCommand implements CommandExecutor {
             return false;
         }
 
+        PlayerRepository playerRepository = null;
+        try {
+            playerRepository = (PlayerRepository) API.getRepository(PlayerRepository.class);
+        }
+
+        catch (RepositoryRequired exception) {
+            exception.printStackTrace();
+            return false;
+        }
+
         StringBuilder builder = new StringBuilder();
         builder.append("locked_object_id = " + padlockId);
 
         for (int i = 1; i < args.length; i += 1) {
-            //TODO: Wait for convertNameToUuid method in API
-            String memberUuid = Bukkit.getOfflinePlayer(args[i]).getUniqueId().toString();
+            try {
+                //TODO: Not tested yet
+                SeggelinPlayer seggelinPlayer = playerRepository.getPlayerByName(args[i]);
 
-            //TODO: Check if player has ever logged
+                if (i == 1)
+                    builder.append(" AND (uuid = '" + seggelinPlayer.uuid + "'");
 
-            if (i == 1)
-                builder.append(" AND (uuid = '" + memberUuid + "'");
+                else builder.append(" OR uuid = '" + seggelinPlayer.uuid + "'");
+            }
 
-            else builder.append(" OR uuid = '" + memberUuid + "'");
+            catch (EntityNotFound notFoundException) {
+                player.sendMessage(ChatColor.RED + "Nie znaleziono gracza " + args[i] + "!");
+            }
+
+            catch (SQLException exception) {
+                exception.printStackTrace();
+            }
         }
         builder.append(");");
 
