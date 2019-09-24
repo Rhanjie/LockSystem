@@ -147,15 +147,16 @@ public class PadlockInteractionListener implements Listener {
         try {
             UpdateQuery query = (UpdateQuery) API.getDatabase().updateQuery();
             PreparedStatement statement = query.setQuery(
-                    "INSERT INTO locked_objects_list(loc_x, loc_y, loc_z, type, owner_id, level, created_at) " +
-                    "values (?, ?, ?, ?, ?, ?, now());");
+                    "INSERT INTO locked_objects_list(world_uuid, loc_x, loc_y, loc_z, type, owner_id, level, created_at) " +
+                    "values (?, ?, ?, ?, ?, ?, ?, now());");
 
-            statement.setInt(1, block.getLocation().getBlockX());
-            statement.setInt(2, block.getLocation().getBlockY());
-            statement.setInt(3, block.getLocation().getBlockZ());
-            statement.setString(4, block.getType().toString());
-            statement.setInt(5, seggelinPlayer.id);
-            statement.setInt(6, newPadlockLevel);
+            statement.setString(1, block.getLocation().getWorld().getUID().toString());
+            statement.setInt(2, block.getLocation().getBlockX());
+            statement.setInt(3, block.getLocation().getBlockY());
+            statement.setInt(4, block.getLocation().getBlockZ());
+            statement.setString(5, block.getType().toString());
+            statement.setInt(6, seggelinPlayer.id);
+            statement.setInt(7, newPadlockLevel);
             query.execute();
         }
 

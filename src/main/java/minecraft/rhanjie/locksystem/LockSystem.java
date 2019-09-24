@@ -140,13 +140,13 @@ public class LockSystem extends JavaPlugin {
         int loc_y = location.getBlockY();
         int loc_z = location.getBlockZ();
 
-        return "(world_uuid = " + location.getWorld().getUID() +
-                "loc_x = " + loc_x + " AND loc_y = " + loc_y + " AND loc_z = " + loc_z + " AND destroyed_at IS NULL;";
+        return "world_uuid = '" + location.getWorld().getUID() +
+                "' AND loc_x = " + loc_x + " AND loc_y = " + loc_y + " AND loc_z = " + loc_z + " AND destroyed_at IS NULL;";
     }
 
     private String getDoubleConditionWhere(Location firstPartLoc, Location secondPartLoc) {
-        return  "(world_uuid = " + firstPartLoc.getWorld().getUID() +
-                " loc_x = " + firstPartLoc.getBlockX() + " AND loc_y = " + firstPartLoc.getBlockY() + " AND loc_z = " + firstPartLoc.getBlockZ() +
+        return  "world_uuid = '" + firstPartLoc.getWorld().getUID() +
+                "' AND (loc_x = " + firstPartLoc.getBlockX() + " AND loc_y = " + firstPartLoc.getBlockY() + " AND loc_z = " + firstPartLoc.getBlockZ() +
                 " OR loc_x = " + secondPartLoc.getBlockX() + " AND loc_y = " + secondPartLoc.getBlockY() + " AND loc_z = " + secondPartLoc.getBlockZ() +
                 ") AND destroyed_at IS NULL;";
     }
@@ -210,10 +210,9 @@ public class LockSystem extends JavaPlugin {
                 try {
                     String conditionWhere = (LockSystem.access).getAutomaticConditionWhere(block);
                     UpdateQuery query = (UpdateQuery) API.getDatabase().updateQuery();
-                    PreparedStatement statement = query.setQuery("UPDATE locked_objects_list SET destroyed_at = now(), " +
+                    query.setQuery("UPDATE locked_objects_list SET destroyed_at = now(), " +
                             "destroy_guilty = undefined, destroy_reason = 'Blad! Brak bloku, uszkodzony zamek' WHERE " + conditionWhere);
 
-                    statement.setString(1, player.getName());
                     query.execute();
                 }
 
