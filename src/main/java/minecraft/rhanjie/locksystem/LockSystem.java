@@ -9,8 +9,10 @@ import minecraft.throk.api.database.SelectQuery;
 import minecraft.throk.api.database.Transaction;
 import minecraft.throk.api.database.UpdateQuery;
 import minecraft.throk.api.exceptions.EntityNotFound;
+import org.bukkit.Bukkit;
 import org.bukkit.ChatColor;
 import org.bukkit.Location;
+import org.bukkit.World;
 import org.bukkit.block.Block;
 import org.bukkit.block.Chest;
 import org.bukkit.block.DoubleChest;
@@ -25,6 +27,7 @@ import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.util.List;
+import java.util.UUID;
 
 public class LockSystem extends JavaPlugin {
     public static LockSystem access;
@@ -37,6 +40,8 @@ public class LockSystem extends JavaPlugin {
         configManager = new ConfigManager(this);
 
         this.prepareMySqlTable();
+        this.checkAllPadlocks();
+
         this.registerCommands();
         this.registerListeners();
     }
@@ -110,9 +115,10 @@ public class LockSystem extends JavaPlugin {
         }
 
         catch (SQLException exception) {
-            player.sendMessage(ChatColor.RED + "Cos poszlo nie tak! Zglos to krolowi");
-            exception.printStackTrace();
+            if (player != null)
+                player.sendMessage(ChatColor.RED + "Cos poszlo nie tak! Zglos to krolowi");
 
+            exception.printStackTrace();
             return null;
         }
     }
@@ -134,11 +140,13 @@ public class LockSystem extends JavaPlugin {
         int loc_y = location.getBlockY();
         int loc_z = location.getBlockZ();
 
-        return "loc_x = " + loc_x + " AND loc_y = " + loc_y + " AND loc_z = " + loc_z + " AND destroyed_at IS NULL;";
+        return "(world_uuid = " + location.getWorld().getUID() +
+                "loc_x = " + loc_x + " AND loc_y = " + loc_y + " AND loc_z = " + loc_z + " AND destroyed_at IS NULL;";
     }
 
     private String getDoubleConditionWhere(Location firstPartLoc, Location secondPartLoc) {
-        return  "(loc_x = " + firstPartLoc.getBlockX() + " AND loc_y = " + firstPartLoc.getBlockY() + " AND loc_z = " + firstPartLoc.getBlockZ() +
+        return  "(world_uuid = " + firstPartLoc.getWorld().getUID() +
+                " loc_x = " + firstPartLoc.getBlockX() + " AND loc_y = " + firstPartLoc.getBlockY() + " AND loc_z = " + firstPartLoc.getBlockZ() +
                 " OR loc_x = " + secondPartLoc.getBlockX() + " AND loc_y = " + secondPartLoc.getBlockY() + " AND loc_z = " + secondPartLoc.getBlockZ() +
                 ") AND destroyed_at IS NULL;";
     }
@@ -146,7 +154,7 @@ public class LockSystem extends JavaPlugin {
     private void prepareMySqlTable() {
         String createLockedObjectsListTable =
                 "CREATE TABLE IF NOT EXISTS locked_objects_list(id int AUTO_INCREMENT NOT NULL PRIMARY KEY, " +
-                "loc_x int NOT NULL, loc_y int NOT NULL, loc_z int NOT NULL, " +
+                "world_uuid varchar(255) NOT NULL, loc_x int NOT NULL, loc_y int NOT NULL, loc_z int NOT NULL, " +
                 "type varchar(255) NOT NULL, owner_id int NOT NULL, level int NOT NULL, " +
                 "created_at datetime NOT NULL, last_break_attempt datetime, break_protection_time datetime, " +
                 "destroyed_at datetime, destroy_guilty varchar(255), destroy_reason varchar(255), " +
@@ -174,6 +182,50 @@ public class LockSystem extends JavaPlugin {
         }
 
         catch (SQLException exception) {
+            exception.printStackTrace();
+        }
+    }
+
+    private void checkAllPadlocks() {
+        ResultSet result = this.getInfoFromDatabase(null, "SELECT * FROM locked_objects_list");
+
+        if (result == null)
+            return;
+
+        try {
+            while (result.next()) {
+                UUID worldUuid = UUID.fromString(result.getString(2));
+                World world = Bukkit.getWorld(worldUuid);
+
+                double x = result.getInt(3);
+                double y = result.getInt(4);
+                double z = result.getInt(5);
+
+                Location location = new Location(world, x, y, z);
+                Block block = location.getBlock();
+
+                if ((LockSystem.access).checkIfElementIsAvailable(this.getConfig(), block.getType().toString(), "lockableBlocks") != -1)
+                    continue;
+
+                try {
+                    String conditionWhere = (LockSystem.access).getAutomaticConditionWhere(block);
+                    UpdateQuery query = (UpdateQuery) API.getDatabase().updateQuery();
+                    PreparedStatement statement = query.setQuery("UPDATE locked_objects_list SET destroyed_at = now(), " +
+                            "destroy_guilty = undefined, destroy_reason = 'Blad! Brak bloku, uszkodzony zamek' WHERE " + conditionWhere);
+
+                    statement.setString(1, player.getName());
+                    query.execute();
+                }
+
+                catch (SQLException exception) {
+                    exception.printStackTrace();
+
+                    return;
+                }
+            }
+        }
+
+        catch(SQLException exception) {
             exception.printStackTrace();
         }
     }

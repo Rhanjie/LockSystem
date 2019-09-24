@@ -221,7 +221,7 @@ public class PadlockInteractionListener implements Listener {
         int amount = player.getInventory().getItemInMainHand().getAmount();
         player.getInventory().getItemInMainHand().setAmount(amount - 1);
 
-        player.playSound(event.getClickedBlock().getLocation(), Sound.BLOCK_ANVIL_USE, 100.0F, 1F);
+        player.getWorld().playSound(event.getClickedBlock().getLocation(), Sound.BLOCK_ANVIL_USE, 100.0F, 1F);
         player.sendMessage(LockSystem.access.getMessage("lockable.breakFail"));
         event.setCancelled(true);
     }

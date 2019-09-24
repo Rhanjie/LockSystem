@@ -208,7 +208,7 @@ public class PluginCommand implements CommandExecutor {
                 UpdateQuery query = (UpdateQuery) API.getDatabase().updateQuery();
                 PreparedStatement statement = query.setQuery(
                         "UPDATE locked_objects_list SET destroyed_at = now(), " +
-                        "destroy_guilty = '" + player.getName() + "', destroy_reason = 'Usuniecie klodki' WHERE " + conditionWhere);
+                        "destroy_guilty = ?, destroy_reason = 'Usuniecie klodki' WHERE " + conditionWhere);
 
                 statement.setString(1, player.getName());
                 query.execute();
