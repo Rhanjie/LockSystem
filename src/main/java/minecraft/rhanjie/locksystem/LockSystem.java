@@ -5,16 +5,25 @@ import minecraft.rhanjie.locksystem.listeners.PadlockDestroyListener;
 import minecraft.rhanjie.locksystem.listeners.PadlockInteractionListener;
 import minecraft.rhanjie.locksystem.utility.ConfigManager;
 import minecraft.throk.api.API;
+import minecraft.throk.api.database.SelectQuery;
+import minecraft.throk.api.database.Transaction;
+import minecraft.throk.api.database.UpdateQuery;
+import minecraft.throk.api.exceptions.EntityNotFound;
+import org.bukkit.ChatColor;
 import org.bukkit.Location;
 import org.bukkit.block.Block;
 import org.bukkit.block.Chest;
 import org.bukkit.block.DoubleChest;
 import org.bukkit.block.data.type.Door;
 import org.bukkit.configuration.file.FileConfiguration;
+import org.bukkit.entity.Player;
 import org.bukkit.inventory.InventoryHolder;
 import org.bukkit.plugin.PluginManager;
 import org.bukkit.plugin.java.JavaPlugin;
 
+import java.sql.PreparedStatement;
+import java.sql.ResultSet;
+import java.sql.SQLException;
 import java.util.List;
 
 public class LockSystem extends JavaPlugin {
@@ -90,6 +99,24 @@ public class LockSystem extends JavaPlugin {
         return null;
     }
 
+    //TODO; Add support for varargs
+    public ResultSet getInfoFromDatabase(Player player, String queryContent) { //Object... arguments
+        try {
+            SelectQuery query = (SelectQuery) API.getDatabase().selectQuery();
+            query.setQuery(queryContent);
+            query.execute();
+
+            return query.getResultSet();
+        }
+
+        catch (SQLException exception) {
+            player.sendMessage(ChatColor.RED + "Cos poszlo nie tak! Zglos to krolowi");
+            exception.printStackTrace();
+
+            return null;
+        }
+    }
+
     private Location getDoorSecondPartLocation(Door door, Location secondLocation) {
         String doorPart = door.getHalf().toString();
 
@@ -117,22 +144,44 @@ public class LockSystem extends JavaPlugin {
     }
 
     private void prepareMySqlTable() {
-        API.updateSQL("CREATE TABLE IF NOT EXISTS locked_objects_list(id int AUTO_INCREMENT NOT NULL PRIMARY KEY, " +
+        String createLockedObjectsListTable =
+                "CREATE TABLE IF NOT EXISTS locked_objects_list(id int AUTO_INCREMENT NOT NULL PRIMARY KEY, " +
                 "loc_x int NOT NULL, loc_y int NOT NULL, loc_z int NOT NULL, " +
                 "type varchar(255) NOT NULL, owner_id int NOT NULL, level int NOT NULL, " +
                 "created_at datetime NOT NULL, last_break_attempt datetime, break_protection_time datetime, " +
                 "destroyed_at datetime, destroy_guilty varchar(255), destroy_reason varchar(255), " +
                 "KEY owner_id (owner_id), FOREIGN KEY (owner_id) REFERENCES player_list(id)) " +
-                "ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;");
+                "ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;";
 
-        API.updateSQL("CREATE TABLE IF NOT EXISTS locked_objects_members_list(id int AUTO_INCREMENT NOT NULL PRIMARY KEY, " +
-                "locked_object_id int NOT NULL, uuid varchar(255) NOT NULL UNIQUE, added_at datetime NOT NULL, " +
+        String createLockedObjectsMembersListTable =
+                "CREATE TABLE IF NOT EXISTS locked_objects_members_list(id int AUTO_INCREMENT NOT NULL PRIMARY KEY, " +
+                "locked_object_id int NOT NULL, uuid varchar(255) NOT NULL, added_at datetime NOT NULL, " +
                 "KEY locked_object_id (locked_object_id), FOREIGN KEY (locked_object_id) REFERENCES locked_objects_list(id)) " +
-                "ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;");
+                "ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;";
+
+        try {
+            Transaction transaction = API.getDatabase().transaction();
+            transaction.start();
+
+            UpdateQuery query = (UpdateQuery) API.getDatabase().updateQuery();
+            query.setQuery(createLockedObjectsListTable);
+            query.execute();
+
+            query.setQuery(createLockedObjectsMembersListTable);
+            query.execute();
+
+            transaction.commit();
+        }
+
+        catch (SQLException exception) {
+            exception.printStackTrace();
+        }
     }
 
     private void registerCommands() {
         this.getCommand("klodka").setExecutor(new PluginCommand());
+
+        //...
     }
 
     private void registerListeners() {

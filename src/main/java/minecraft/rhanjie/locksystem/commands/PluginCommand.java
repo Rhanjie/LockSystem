@@ -83,8 +83,12 @@ public class PluginCommand implements CommandExecutor {
             return false;
 
         String conditionWhere = (LockSystem.access).getAutomaticConditionWhere(block);
-        ResultSet result = API.selectSQL("SELECT locked_objects_list.id, player_list.uuid, level FROM locked_objects_list " +
-                "INNER JOIN player_list ON locked_objects_list.owner_id = player_list.id WHERE " + conditionWhere);
+        ResultSet result = LockSystem.access.getInfoFromDatabase(player,
+                "SELECT locked_objects_list.id, player_list.uuid, level FROM locked_objects_list " +
+                 "INNER JOIN player_list ON locked_objects_list.owner_id = player_list.id WHERE " + conditionWhere);
+
+        if (result == null)
+            return false;
 
         int recordId = 0;
         boolean isLocked = false;
@@ -112,20 +116,25 @@ public class PluginCommand implements CommandExecutor {
         }
 
         if (playerIsOwner) {
-            ArrayList<UUID> members = new ArrayList<UUID>();
+            ArrayList<String> members = new ArrayList<String>();
 
-            ResultSet membersResult = API.selectSQL("SELECT uuid FROM locked_objects_members_list WHERE locked_object_id = " + recordId);
-            boolean padlockMember = false;
+            ResultSet membersResult = LockSystem.access.getInfoFromDatabase(player,
+                    "SELECT uuid FROM locked_objects_members_list WHERE locked_object_id = " + recordId);
+
+            if (membersResult == null)
+                return false;
 
             try {
-                while (membersResult.next()) {
-                    UUID memberUuid = UUID.fromString(membersResult.getString(1));
-                    members.add(memberUuid);
+                PlayerRepository playerRepository = (PlayerRepository) API.getRepository(PlayerRepository.class);
+                SeggelinPlayer seggelinPlayer;
 
-                    if (player.getUniqueId().equals(memberUuid))
-                        padlockMember = true;
+                while (membersResult.next()) {
+                    seggelinPlayer = playerRepository.getPlayerByUid(membersResult.getString(1));
+                    members.add(seggelinPlayer.name);
                 }
-            } catch(SQLException exception) {
+            }
+
+            catch(SQLException | RepositoryRequired | EntityNotFound exception) {
                 exception.printStackTrace();
             }
 
@@ -133,15 +142,15 @@ public class PluginCommand implements CommandExecutor {
             message += ChatColor.GREEN + "Właściciel: " + ChatColor.GOLD + "Ty\n";
             message += ChatColor.GREEN + LockSystem.access.getMessage("lockable.levelInfo") + ChatColor.GOLD + currentPadlockLevel + "\n";
             message += ChatColor.RESET + "Osoby majace dostep:\n" + ChatColor.GOLD;
-            for (UUID uuid : members) {
-                message += "- " + Bukkit.getOfflinePlayer(uuid).getName() + "\n";
+            for (String memberName : members) {
+                message += "- " + memberName + "\n";
             }
 
             player.sendMessage(message);
             return true;
         }
 
-        player.sendMessage(LockSystem.access.getMessage("lockable.ownerInfo") + ChatColor.RED + ownerName);
+        player.sendMessage(LockSystem.access.getMessage("lockable.ownerInfo") + ChatColor.GOLD + ownerName);
         player.sendMessage(LockSystem.access.getMessage("lockable.padlockInfo"));
 
         return true;
@@ -167,8 +176,12 @@ public class PluginCommand implements CommandExecutor {
             return false;
 
         String conditionWhere = (LockSystem.access).getAutomaticConditionWhere(block);
-        ResultSet result = API.selectSQL("SELECT player_list.uuid, level FROM locked_objects_list " +
-                "INNER JOIN player_list ON locked_objects_list.owner_id = player_list.id WHERE " + conditionWhere);
+        ResultSet result = LockSystem.access.getInfoFromDatabase(player,
+                "SELECT player_list.uuid, level FROM locked_objects_list " +
+                 "INNER JOIN player_list ON locked_objects_list.owner_id = player_list.id WHERE " + conditionWhere);
+
+        if (result == null)
+            return false;
 
         boolean isLocked = false;
         boolean playerIsOwner = false;
@@ -191,8 +204,23 @@ public class PluginCommand implements CommandExecutor {
         }
 
         if (playerIsOwner) {
-            API.updateSQL("UPDATE locked_objects_list SET destroyed_at = now(), " +
-                    "destroy_guilty = '" + player.getName() + "', destroy_reason = 'Usuniecie klodki' WHERE " + conditionWhere);
+            try {
+                UpdateQuery query = (UpdateQuery) API.getDatabase().updateQuery();
+                PreparedStatement statement = query.setQuery(
+                        "UPDATE locked_objects_list SET destroyed_at = now(), " +
+                        "destroy_guilty = '" + player.getName() + "', destroy_reason = 'Usuniecie klodki' WHERE " + conditionWhere);
+
+                statement.setString(1, player.getName());
+                query.execute();
+            }
+
+            catch (SQLException exception) {
+                player.sendMessage(ChatColor.RED + "Cos poszlo nie tak! Zglos to krolowi");
+                exception.printStackTrace();
+
+                return false;
+            }
+
 
             List<String> padlocks = config.getStringList("padlocks");
             String padlockName = padlocks.get(padlockLevel - 1).toUpperCase();
@@ -232,8 +260,12 @@ public class PluginCommand implements CommandExecutor {
             return false;
 
         String conditionWhere = (LockSystem.access).getAutomaticConditionWhere(block);
-        ResultSet result = API.selectSQL("SELECT locked_objects_list.id, player_list.uuid, level FROM locked_objects_list " +
-                "INNER JOIN player_list ON locked_objects_list.owner_id = player_list.id WHERE " + conditionWhere);
+        ResultSet result = LockSystem.access.getInfoFromDatabase(player,
+                "SELECT locked_objects_list.id, player_list.uuid, level FROM locked_objects_list " +
+                 "INNER JOIN player_list ON locked_objects_list.owner_id = player_list.id WHERE " + conditionWhere);
+
+        if (result == null)
+            return false;
 
         boolean isLocked = false;
         boolean playerIsOwner = false;
@@ -276,11 +308,24 @@ public class PluginCommand implements CommandExecutor {
         for (int i = 1; i < args.length; i += 1) {
             try {
                 SeggelinPlayer seggelinPlayer = playerRepository.getPlayerByName(args[i]);
+
+                ResultSet memberResult = LockSystem.access.getInfoFromDatabase(player,
+                        "SELECT id FROM locked_objects_members_list WHERE " +
+                         "locked_object_id = " + padlockId + " AND uuid = '" + seggelinPlayer.uuid + "';");
+
+                if (memberResult == null)
+                    return false;
+
+                if (memberResult.next()) {
+                    player.sendMessage(ChatColor.RED + "Gracz " + ChatColor.RESET + args[i] + ChatColor.RED + " był już dodany do kłódki!");
+
+                    continue;
+                }
+
                 UpdateQuery query = (UpdateQuery) API.getDatabase().updateQuery();
 
-                //TODO: Generated keys not requested. Specify return generated keys
                 PreparedStatement statement = query.setQuery("INSERT INTO locked_objects_members_list" +
-                        "(locked_object_id, uuid, added_at) values (?, ?, now());");
+                        " (locked_object_id, uuid, added_at) values (?, ?, now());");
                 statement.setInt(1, padlockId);
                 statement.setString(2, seggelinPlayer.uuid);
 
@@ -296,7 +341,7 @@ public class PluginCommand implements CommandExecutor {
             }
         }
 
-        player.sendMessage(ChatColor.GREEN + "Pomyslnie dodano ludzi do klodki!");
+        player.sendMessage(ChatColor.GREEN + "Klodka zaaktualizowana!");
         return true;
     }
 
@@ -323,17 +368,18 @@ public class PluginCommand implements CommandExecutor {
             return false;
 
         String conditionWhere = (LockSystem.access).getAutomaticConditionWhere(block);
-        ResultSet result = API.selectSQL("SELECT locked_objects_list.id, player_list.uuid, level FROM locked_objects_list " +
-                "INNER JOIN player_list ON locked_objects_list.owner_id = player_list.id WHERE " + conditionWhere);
+        ResultSet result = LockSystem.access.getInfoFromDatabase(player,
+                "SELECT locked_objects_list.id, player_list.uuid, level FROM locked_objects_list " +
+                 "INNER JOIN player_list ON locked_objects_list.owner_id = player_list.id WHERE " + conditionWhere);
 
-        boolean isLocked = false;
+        if (result == null)
+            return false;
+
         boolean playerIsOwner = false;
         int padlockId = 0;
 
         try {
-            isLocked = result.next();
-
-            if (!isLocked)
+            if (!result.next())
                 return false;
 
             padlockId = result.getInt(1);
@@ -353,7 +399,7 @@ public class PluginCommand implements CommandExecutor {
             return false;
         }
 
-        PlayerRepository playerRepository = null;
+        PlayerRepository playerRepository;
         try {
             playerRepository = (PlayerRepository) API.getRepository(PlayerRepository.class);
         }
@@ -363,22 +409,21 @@ public class PluginCommand implements CommandExecutor {
             return false;
         }
 
-        StringBuilder builder = new StringBuilder();
-        builder.append("locked_object_id = " + padlockId);
-
+        StringBuilder builder = new StringBuilder("locked_object_id = " + padlockId);
         for (int i = 1; i < args.length; i += 1) {
             try {
-                //TODO: Not tested yet
                 SeggelinPlayer seggelinPlayer = playerRepository.getPlayerByName(args[i]);
 
                 if (i == 1)
-                    builder.append(" AND (uuid = '" + seggelinPlayer.uuid + "'");
+                    builder.append(" AND (uuid = '");
+                else builder.append(" OR uuid = '");
 
-                else builder.append(" OR uuid = '" + seggelinPlayer.uuid + "'");
+                builder.append(seggelinPlayer.uuid);
+                builder.append("'");
             }
 
-            catch (EntityNotFound notFoundException) {
-                player.sendMessage(ChatColor.RED + "Nie znaleziono gracza " + args[i] + "!");
+            catch (EntityNotFound exception) {
+                player.sendMessage(ChatColor.RED + "Nie znaleziono gracza " + ChatColor.RESET + args[i] + ChatColor.RED + "!");
             }
 
             catch (SQLException exception) {
@@ -387,8 +432,26 @@ public class PluginCommand implements CommandExecutor {
         }
         builder.append(");");
 
-        API.updateSQL("DELETE FROM locked_objects_members_list WHERE " + builder.toString());
-        player.sendMessage(ChatColor.GREEN + "Klodka zaaktualizowana!");
+        try {
+            UpdateQuery query = (UpdateQuery) API.getDatabase().updateQuery();
+            query.setQuery("DELETE FROM locked_objects_members_list WHERE " + builder.toString());
+
+            if (!query.execute()) {
+                player.sendMessage(ChatColor.RED + "Blad podczas aktualizowania klodki!");
+
+                return false;
+            }
+
+            player.sendMessage(ChatColor.GREEN + "Klodka zaaktualizowana!");
+        }
+
+        catch(SQLException exception) {
+            player.sendMessage(ChatColor.RED + "Blad podczas aktualizowania klodki!");
+            exception.printStackTrace();
+
+            return false;
+        }
+
         return true;
     }
 

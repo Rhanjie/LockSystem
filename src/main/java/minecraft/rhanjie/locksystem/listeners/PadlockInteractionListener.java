@@ -3,12 +3,9 @@ package minecraft.rhanjie.locksystem.listeners;
 import minecraft.rhanjie.locksystem.LockSystem;
 import minecraft.throk.api.API;
 import minecraft.throk.api.SeggelinPlayer;
-import minecraft.throk.api.database.repositories.PlayerRepository;
-import minecraft.throk.api.exceptions.EntityNotFound;
-import minecraft.throk.api.exceptions.RepositoryRequired;
+import minecraft.throk.api.database.UpdateQuery;
 import org.bukkit.*;
 import org.bukkit.block.Block;
-import org.bukkit.block.Chest;
 import org.bukkit.block.data.type.Door;
 import org.bukkit.configuration.file.FileConfiguration;
 import org.bukkit.entity.Player;
@@ -18,6 +15,7 @@ import org.bukkit.event.Listener;
 import org.bukkit.event.block.Action;
 import org.bukkit.event.player.PlayerInteractEvent;
 
+import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.text.SimpleDateFormat;
@@ -43,10 +41,13 @@ public class PadlockInteractionListener implements Listener {
         API.playerList.put(uuid, new SeggelinPlayer(player.getName(), uuid));
 
         Material itemInHand = player.getInventory().getItemInMainHand().getType();
-
         String conditionWhere = (LockSystem.access).getAutomaticConditionWhere(block);
-        ResultSet result = API.selectSQL("SELECT locked_objects_list.id, player_list.uuid, player_list.name, level FROM locked_objects_list " +
-                "INNER JOIN player_list ON locked_objects_list.owner_id = player_list.id WHERE " + conditionWhere);
+        ResultSet result = LockSystem.access.getInfoFromDatabase(player,
+                "SELECT locked_objects_list.id, player_list.uuid, player_list.name, level FROM locked_objects_list " +
+                 "INNER JOIN player_list ON locked_objects_list.owner_id = player_list.id WHERE " + conditionWhere);
+
+        if (result == null)
+            return;
 
         boolean isLocked = false;
         boolean playerIsOwner = false;
@@ -111,7 +112,22 @@ public class PadlockInteractionListener implements Listener {
                 return;
             }
 
-            API.updateSQL("UPDATE locked_objects_list SET level = " + newPadlockLevel + " WHERE id = " + recordId);
+            try {
+                UpdateQuery query = (UpdateQuery) API.getDatabase().updateQuery();
+                PreparedStatement statement = query.setQuery("UPDATE locked_objects_list SET level = ? WHERE id = ?");
+
+                statement.setInt(1, newPadlockLevel);
+                statement.setInt(2, recordId);
+                query.execute();
+            }
+
+            catch (SQLException exception) {
+                player.sendMessage(ChatColor.RED + "Cos poszlo nie tak! Zglos to krolowi");
+                exception.printStackTrace();
+
+                event.setCancelled(true);
+                return;
+            }
 
             int currentAmount = player.getInventory().getItemInMainHand().getAmount();
             player.getInventory().getItemInMainHand().setAmount(currentAmount - 1);
@@ -128,8 +144,28 @@ public class PadlockInteractionListener implements Listener {
         int locY = block.getLocation().getBlockY();
         int locZ = block.getLocation().getBlockZ();
 
-        API.updateSQL("INSERT INTO locked_objects_list(loc_x, loc_y, loc_z, type, owner_id, level, created_at) values (" +
-                locX + ", " + locY + ", " + locZ + ", '" + block.getType().toString() + "', " + seggelinPlayer.id + ", " + newPadlockLevel + ", now());");
+        try {
+            UpdateQuery query = (UpdateQuery) API.getDatabase().updateQuery();
+            PreparedStatement statement = query.setQuery(
+                    "INSERT INTO locked_objects_list(loc_x, loc_y, loc_z, type, owner_id, level, created_at) " +
+                    "values (?, ?, ?, ?, ?, ?, now());");
+
+            statement.setInt(1, block.getLocation().getBlockX());
+            statement.setInt(2, block.getLocation().getBlockY());
+            statement.setInt(3, block.getLocation().getBlockZ());
+            statement.setString(4, block.getType().toString());
+            statement.setInt(5, seggelinPlayer.id);
+            statement.setInt(6, newPadlockLevel);
+            query.execute();
+        }
+
+        catch (SQLException exception) {
+            player.sendMessage(ChatColor.RED + "Cos poszlo nie tak! Zglos to krolowi");
+            exception.printStackTrace();
+
+            event.setCancelled(true);
+            return;
+        }
 
         int currentAmount = player.getInventory().getItemInMainHand().getAmount();
         player.getInventory().getItemInMainHand().setAmount(currentAmount - 1);
@@ -164,8 +200,23 @@ public class PadlockInteractionListener implements Listener {
             return;
         }
 
-        API.updateSQL("UPDATE locked_objects_list SET last_break_attempt = now() WHERE id = " + recordId);
-        //TODO: Add information for [W]
+        try {
+            UpdateQuery query = (UpdateQuery) API.getDatabase().updateQuery();
+            PreparedStatement statement = query.setQuery(
+                    "UPDATE locked_objects_list SET last_break_attempt = now() WHERE id = ?;");
+
+            //TODO: Add information for [W]
+            statement.setInt(1, recordId);
+            query.execute();
+        }
+
+        catch (SQLException exception) {
+            player.sendMessage(ChatColor.RED + "Cos poszlo nie tak! Zglos to krolowi");
+            exception.printStackTrace();
+
+            event.setCancelled(true);
+            return;
+        }
 
         int amount = player.getInventory().getItemInMainHand().getAmount();
         player.getInventory().getItemInMainHand().setAmount(amount - 1);
@@ -178,7 +229,9 @@ public class PadlockInteractionListener implements Listener {
     private void displayPadlockInfo(PlayerInteractEvent event, Player player, Material itemInHand, boolean playerIsOwner, String ownerName, int recordId, int currentPadlockLevel) {
         ArrayList<UUID> members = new ArrayList<UUID>();
 
-        ResultSet result = API.selectSQL("SELECT uuid FROM locked_objects_members_list WHERE locked_object_id = " + recordId);
+        ResultSet result = LockSystem.access.getInfoFromDatabase(player,
+                "SELECT uuid FROM locked_objects_members_list WHERE locked_object_id = " + recordId);
+
         boolean padlockMember = false;
 
         try {
@@ -196,7 +249,7 @@ public class PadlockInteractionListener implements Listener {
         if (playerIsOwner) {
             if (itemInHand == Material.BOOK) {
                 String message = "";
-                message += ChatColor.GREEN + "Właściciel: " + ChatColor.GOLD + "Ty\n";
+                message += ChatColor.GREEN + LockSystem.access.getMessage("lockable.ownerInfo") + ChatColor.GOLD + "Ty\n";
                 message += ChatColor.GREEN + LockSystem.access.getMessage("lockable.levelInfo") + ChatColor.GOLD + currentPadlockLevel + "\n";
                 message += ChatColor.RESET + "Osoby majace dostep:\n" + ChatColor.GOLD;
                 for (UUID uuid : members) {
@@ -213,7 +266,7 @@ public class PadlockInteractionListener implements Listener {
         if (padlockMember)
             return;
 
-        player.sendMessage(LockSystem.access.getMessage("lockable.ownerInfo") + ChatColor.RED + ownerName);
+        player.sendMessage(LockSystem.access.getMessage("lockable.ownerInfo") + ChatColor.GOLD + ownerName);
         player.sendMessage(LockSystem.access.getMessage("lockable.padlockInfo"));
 
         event.setCancelled(true);
