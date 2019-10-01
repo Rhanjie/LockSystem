@@ -140,12 +140,12 @@ public class LockSystem extends JavaPlugin {
         int loc_y = location.getBlockY();
         int loc_z = location.getBlockZ();
 
-        return "world_uuid = '" + location.getWorld().getUID() +
+        return "world_uuid = '" + location.getWorld().getUID().toString() +
                 "' AND loc_x = " + loc_x + " AND loc_y = " + loc_y + " AND loc_z = " + loc_z + " AND destroyed_at IS NULL;";
     }
 
     private String getDoubleConditionWhere(Location firstPartLoc, Location secondPartLoc) {
-        return  "world_uuid = '" + firstPartLoc.getWorld().getUID() +
+        return  "world_uuid = '" + firstPartLoc.getWorld().getUID().toString() +
                 "' AND (loc_x = " + firstPartLoc.getBlockX() + " AND loc_y = " + firstPartLoc.getBlockY() + " AND loc_z = " + firstPartLoc.getBlockZ() +
                 " OR loc_x = " + secondPartLoc.getBlockX() + " AND loc_y = " + secondPartLoc.getBlockY() + " AND loc_z = " + secondPartLoc.getBlockZ() +
                 ") AND destroyed_at IS NULL;";

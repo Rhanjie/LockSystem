@@ -18,11 +18,10 @@ import org.bukkit.event.player.PlayerInteractEvent;
 import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.sql.SQLException;
+import java.sql.Timestamp;
 import java.text.SimpleDateFormat;
-import java.util.ArrayList;
-import java.util.Date;
-import java.util.Random;
-import java.util.UUID;
+import java.time.Instant;
+import java.util.*;
 
 public class PadlockInteractionListener implements Listener {
     @EventHandler(priority = EventPriority.LOW)
@@ -43,7 +42,7 @@ public class PadlockInteractionListener implements Listener {
         Material itemInHand = player.getInventory().getItemInMainHand().getType();
         String conditionWhere = (LockSystem.access).getAutomaticConditionWhere(block);
         ResultSet result = LockSystem.access.getInfoFromDatabase(player,
-                "SELECT locked_objects_list.id, player_list.uuid, player_list.name, level FROM locked_objects_list " +
+                "SELECT locked_objects_list.id, player_list.uuid, player_list.name, level, break_protection_time FROM locked_objects_list " +
                  "INNER JOIN player_list ON locked_objects_list.owner_id = player_list.id WHERE " + conditionWhere);
 
         if (result == null)
@@ -51,6 +50,7 @@ public class PadlockInteractionListener implements Listener {
 
         boolean isLocked = false;
         boolean playerIsOwner = false;
+        boolean padlockProtection = false;
         String ownerName = player.getName();
 
         int recordId = -1;
@@ -69,6 +69,9 @@ public class PadlockInteractionListener implements Listener {
 
                 ownerName = result.getString(3);
                 currentPadlockLevel = result.getInt(4);
+
+                if (result.getTimestamp(5) != null)
+                    padlockProtection = result.getTimestamp(5).toInstant().isAfter(Instant.now());
             }
         } catch (SQLException exception) {
             exception.printStackTrace();
@@ -87,8 +90,14 @@ public class PadlockInteractionListener implements Listener {
         picklockLevel = (LockSystem.access).checkIfElementIsAvailable(config, itemInHand.toString(), "picklocks");
         if (picklockLevel != -1) {
             if (!playerIsOwner) {
-                this.tryBreakPadlock(event, player, recordId, currentPadlockLevel, picklockLevel);
+                if (padlockProtection) {
+                    player.sendMessage(ChatColor.RED + "Kłódka została niedawno zniszczona! Spróbuj ponownie później");
 
+                    event.setCancelled(true);
+                    return;
+                }
+
+                this.tryBreakPadlock(event, player, recordId, currentPadlockLevel, picklockLevel);
                 return;
             }
         }
@@ -140,9 +149,6 @@ public class PadlockInteractionListener implements Listener {
         SeggelinPlayer seggelinPlayer = API.playerList.get(player.getUniqueId().toString());
 
         Block block = event.getClickedBlock();
-        int locX = block.getLocation().getBlockX();
-        int locY = block.getLocation().getBlockY();
-        int locZ = block.getLocation().getBlockZ();
 
         try {
             UpdateQuery query = (UpdateQuery) API.getDatabase().updateQuery();
@@ -189,12 +195,33 @@ public class PadlockInteractionListener implements Listener {
         int playerLockpickingLevel = random.nextInt(10);
         int chanceToSuccess = 10 + (playerLockpickingLevel * 10) - 50 * (currentPadlockLevel - 1);
         if (random.nextInt(100) < chanceToSuccess) {
-            //TODO: Add break protection
-            Date datetime = new java.util.Date();
-            SimpleDateFormat format = new SimpleDateFormat("yyyy-MM-dd HH:mm:ss");
+            SimpleDateFormat mysqlFriendlyFormat = new SimpleDateFormat("yyyy-MM-dd HH:mm:ss");
 
-            String currentTime = format.format(datetime);
-            //API.updateSQL("UPDATE locked_objects_list SET break_protection_time = " + currentTime + " WHERE id = " + recordId);
+            Calendar calendar = Calendar.getInstance();
+            //calendar.add(Calendar.HOUR, 6);
+            calendar.add(Calendar.MINUTE, 1);
+            Date datetime = calendar.getTime();
+
+            String currentTime = mysqlFriendlyFormat.format(datetime);
+
+            try {
+                UpdateQuery query = (UpdateQuery) API.getDatabase().updateQuery();
+                PreparedStatement statement = query.setQuery(
+                        "UPDATE locked_objects_list SET break_protection_time = ? WHERE id = ?;");
+
+                //TODO: Add information for [W]
+                statement.setTimestamp(1, Timestamp.valueOf(currentTime));
+                statement.setInt(2, recordId);
+                query.execute();
+            }
+
+            catch (SQLException exception) {
+                player.sendMessage(ChatColor.RED + "Cos poszlo nie tak! Zglos to krolowi");
+                exception.printStackTrace();
+
+                event.setCancelled(true);
+                return;
+            }
 
             player.sendMessage(LockSystem.access.getMessage("lockable.breakSuccess"));
 
