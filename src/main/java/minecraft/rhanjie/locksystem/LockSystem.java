@@ -23,7 +23,6 @@ import org.bukkit.inventory.InventoryHolder;
 import org.bukkit.plugin.PluginManager;
 import org.bukkit.plugin.java.JavaPlugin;
 
-import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.util.List;
@@ -152,6 +151,7 @@ public class LockSystem extends JavaPlugin {
     }
 
     private void prepareMySqlTable() {
+        //TODO: I created `world_uuid` but it doesn't work in seggelin. Need test!
         String createLockedObjectsListTable =
                 "CREATE TABLE IF NOT EXISTS locked_objects_list(id int AUTO_INCREMENT NOT NULL PRIMARY KEY, " +
                 "world_uuid varchar(255) NOT NULL, loc_x int NOT NULL, loc_y int NOT NULL, loc_z int NOT NULL, " +

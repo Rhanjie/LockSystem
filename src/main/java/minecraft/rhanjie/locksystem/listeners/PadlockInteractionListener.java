@@ -4,11 +4,15 @@ import minecraft.rhanjie.locksystem.LockSystem;
 import minecraft.throk.api.API;
 import minecraft.throk.api.SeggelinPlayer;
 import minecraft.throk.api.database.UpdateQuery;
+import minecraft.throk.api.database.repositories.PlayerRepository;
+import minecraft.throk.api.exceptions.EntityNotFound;
+import minecraft.throk.api.exceptions.RepositoryRequired;
 import org.bukkit.*;
 import org.bukkit.block.Block;
 import org.bukkit.block.data.type.Door;
 import org.bukkit.configuration.file.FileConfiguration;
 import org.bukkit.entity.Player;
+import org.bukkit.event.Event;
 import org.bukkit.event.EventHandler;
 import org.bukkit.event.EventPriority;
 import org.bukkit.event.Listener;
@@ -198,8 +202,7 @@ public class PadlockInteractionListener implements Listener {
             SimpleDateFormat mysqlFriendlyFormat = new SimpleDateFormat("yyyy-MM-dd HH:mm:ss");
 
             Calendar calendar = Calendar.getInstance();
-            //calendar.add(Calendar.HOUR, 6);
-            calendar.add(Calendar.MINUTE, 1);
+            calendar.add(Calendar.HOUR, 6);
             Date datetime = calendar.getTime();
 
             String currentTime = mysqlFriendlyFormat.format(datetime);
@@ -276,12 +279,34 @@ public class PadlockInteractionListener implements Listener {
 
         if (playerIsOwner) {
             if (itemInHand == Material.BOOK) {
+                PlayerRepository playerRepository;
+                try {
+                    playerRepository = (PlayerRepository) API.getRepository(PlayerRepository.class);
+                }
+
+                catch (RepositoryRequired exception) {
+                    player.sendMessage(ChatColor.RED + "Cos poszlo nie tak! Zglos to krolowi");
+                    exception.printStackTrace();
+
+                    event.setCancelled(true);
+                    return;
+                }
+
+                SeggelinPlayer seggelinPlayer;
+
                 String message = "";
                 message += ChatColor.GREEN + LockSystem.access.getMessage("lockable.ownerInfo") + ChatColor.GOLD + "Ty\n";
                 message += ChatColor.GREEN + LockSystem.access.getMessage("lockable.levelInfo") + ChatColor.GOLD + currentPadlockLevel + "\n";
                 message += ChatColor.RESET + "Osoby majace dostep:\n" + ChatColor.GOLD;
                 for (UUID uuid : members) {
-                    message += "- " + Bukkit.getOfflinePlayer(uuid).getName() + "\n";
+                    try {
+                        seggelinPlayer = playerRepository.getPlayerByUid(uuid.toString());
+                        message += "- " + seggelinPlayer.name + "\n";
+                    }
+
+                    catch (SQLException | EntityNotFound exception) {
+                        exception.printStackTrace();
+                    }
                 }
 
                 player.sendMessage(message);

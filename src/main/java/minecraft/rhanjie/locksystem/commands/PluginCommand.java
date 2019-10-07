@@ -11,7 +11,6 @@ import org.bukkit.Bukkit;
 import org.bukkit.ChatColor;
 import org.bukkit.Material;
 import org.bukkit.block.Block;
-import org.bukkit.block.Chest;
 import org.bukkit.command.Command;
 import org.bukkit.command.CommandExecutor;
 import org.bukkit.command.CommandSender;
@@ -19,14 +18,10 @@ import org.bukkit.configuration.file.FileConfiguration;
 import org.bukkit.entity.Player;
 import org.bukkit.inventory.ItemStack;
 
-import javax.management.Query;
 import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.sql.SQLException;
-import java.sql.Statement;
-import java.util.ArrayList;
-import java.util.List;
-import java.util.UUID;
+import java.util.*;
 
 public class PluginCommand implements CommandExecutor {
     public boolean onCommand(CommandSender sender, Command command, String label, String[] args) {
@@ -456,6 +451,111 @@ public class PluginCommand implements CommandExecutor {
     }
 
     private boolean addGuild(CommandSender sender, String[] args) {
+        if (!(sender instanceof Player)) {
+            sender.sendMessage(ChatColor.RED + "Musisz byc graczem, aby uzyc tej komendy!");
+
+            return false;
+        }
+
+        if (args.length < 2) {
+            sender.sendMessage(ChatColor.RED + "Podaj nazwy dodawanych gildii!");
+            return false;
+        }
+
+        Player player = (Player) sender;
+        Block block = player.getTargetBlock(null, 10);
+
+        if (block.getType() == Material.AIR)
+            return false;
+
+        FileConfiguration config = LockSystem.access.getConfig();
+        if ((LockSystem.access).checkIfElementIsAvailable(config, block.getType().toString(), "lockableBlocks") == -1)
+            return false;
+
+        String conditionWhere = (LockSystem.access).getAutomaticConditionWhere(block);
+        ResultSet result = LockSystem.access.getInfoFromDatabase(player,
+                "SELECT locked_objects_list.id, player_list.uuid, level FROM locked_objects_list " +
+                        "INNER JOIN player_list ON locked_objects_list.owner_id = player_list.id WHERE " + conditionWhere);
+
+        if (result == null)
+            return false;
+
+        boolean isLocked = false;
+        boolean playerIsOwner = false;
+        int padlockId = 0;
+
+        try {
+            isLocked = result.next();
+
+            if (!isLocked)
+                return false;
+
+            padlockId = result.getInt(1);
+
+            String playerUuid = player.getUniqueId().toString();
+            UUID ownerUuid = UUID.fromString(result.getString(2));
+
+            playerIsOwner = playerUuid.equals(ownerUuid.toString());
+        } catch (SQLException exception) {
+            exception.printStackTrace();
+            return false;
+        }
+
+        if (!playerIsOwner) {
+            player.sendMessage(LockSystem.access.getMessage("lockable.notOwner"));
+
+            return false;
+        }
+
+        HashMap<String, Integer> guilds = new HashMap<>();
+        try {
+            ResultSet memberResult = LockSystem.access.getInfoFromDatabase(player,
+                    "SELECT name, id FROM guild_list");
+
+            if (memberResult == null)
+                return false;
+
+            while (memberResult.next()) {
+                String name = memberResult.getString(1);
+                Integer id = memberResult.getInt(2);
+
+                guilds.put(name, id);
+            }
+        }
+
+        catch (SQLException exception) {
+            player.sendMessage(ChatColor.RED + "Coś poszło nie tak! Zgłoś to królowi!");
+            exception.printStackTrace();
+
+            return false;
+        }
+
+        for (int i = 1; i < args.length; i += 1) {
+            for (HashMap.Entry<String, Integer> guild : guilds.entrySet()) {
+                if (guild.getKey().startsWith(args[i])) {
+                    UpdateQuery query = (UpdateQuery) API.getDatabase().updateQuery();
+
+                    try {
+                        //TODO: Find the best way of storing registered guild in the padlock
+                        PreparedStatement statement = query.setQuery("UPDATE locked_objects_members_list;");
+                        //statement.setInt(1, padlockId);
+
+                        query.execute();
+
+                        player.sendMessage(ChatColor.RED + "Gildia dodana pomyslnie do klodki!");
+                    }
+
+                    catch (SQLException exception) {
+                        player.sendMessage(ChatColor.RED + "Coś poszło nie tak! Zgłoś to królowi!");
+                        exception.printStackTrace();
+
+                        return false;
+                    }
+                }
+            }
+        }
+
+        player.sendMessage(ChatColor.GREEN + "Klodka zaaktualizowana!");
         return true;
     }
 
