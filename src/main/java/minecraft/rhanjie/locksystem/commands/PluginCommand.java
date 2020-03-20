@@ -1,12 +1,9 @@
 package minecraft.rhanjie.locksystem.commands;
 
 import minecraft.rhanjie.locksystem.LockSystem;
-import minecraft.throk.api.API;
-import minecraft.throk.api.SeggelinPlayer;
-import minecraft.throk.api.database.UpdateQuery;
-import minecraft.throk.api.database.repositories.PlayerRepository;
-import minecraft.throk.api.exceptions.EntityNotFound;
-import minecraft.throk.api.exceptions.RepositoryRequired;
+import minecraft.rhanjie.locksystem.database.*;
+import minecraft.rhanjie.locksystem.utility.Utility;
+import minecraft.throk.api.database.Database;
 import org.bukkit.Bukkit;
 import org.bukkit.ChatColor;
 import org.bukkit.Material;
@@ -18,12 +15,17 @@ import org.bukkit.configuration.file.FileConfiguration;
 import org.bukkit.entity.Player;
 import org.bukkit.inventory.ItemStack;
 
-import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.util.*;
 
 public class PluginCommand implements CommandExecutor {
+    private Database database;
+
+    public PluginCommand(Database database) {
+        this.database = database;
+    }
+
     public boolean onCommand(CommandSender sender, Command command, String label, String[] args) {
         if (args.length == 0 || args[0].equalsIgnoreCase("pomoc"))
             return helpCommand(sender);
@@ -59,8 +61,8 @@ public class PluginCommand implements CommandExecutor {
         helpInfo += ChatColor.GREEN + "/klodka usun\n";
         helpInfo += ChatColor.GREEN + "/klodka dodaj_czlonka <nick_1> <nick_n>\n";
         helpInfo += ChatColor.GREEN + "/klodka usun_czlonka <nick_1> <nick_n>\n";
-        helpInfo += ChatColor.RED + "/klodka dodaj_gildie <gildia_1> <gildia_n>\n";
-        helpInfo += ChatColor.RED + "/klodka usun_gildie <gildia_1> <gildia_n>\n";
+        //helpInfo += ChatColor.RED + "/klodka dodaj_gildie <gildia_1> <gildia_n>\n";
+        //helpInfo += ChatColor.RED + "/klodka usun_gildie <gildia_1> <gildia_n>\n";
 
         sender.sendMessage(helpInfo);
         return true;
@@ -74,16 +76,15 @@ public class PluginCommand implements CommandExecutor {
         Block block = player.getTargetBlock(null, 10);
 
         FileConfiguration config = LockSystem.access.getConfig();
-        if ((LockSystem.access).checkIfElementIsAvailable(config, block.getType().toString(), "lockableBlocks") == -1)
+        if (Utility.checkIfElementIsAvailable(config, block.getType().toString(), "lockableBlocks") == -1)
             return false;
 
-        String conditionWhere = (LockSystem.access).getAutomaticConditionWhere(block);
-        ResultSet result = LockSystem.access.getInfoFromDatabase(player,
-                "SELECT locked_objects_list.id, player_list.uuid, level FROM locked_objects_list " +
-                 "INNER JOIN player_list ON locked_objects_list.owner_id = player_list.id WHERE " + conditionWhere);
+        SelectLockedObjectsQuery selectLockedObjectsQuery = new SelectLockedObjectsQuery(database);
+        ResultSet result = selectLockedObjectsQuery.getLockedObjectWithOwner(block);
 
-        if (result == null)
+        if (result == null) {
             return false;
+        }
 
         int recordId = 0;
         boolean isLocked = false;
@@ -97,39 +98,42 @@ public class PluginCommand implements CommandExecutor {
             if (!isLocked)
                 return false;
 
-            recordId = result.getInt(1);
+            recordId = result.getInt("locked_objects_list.id");
 
             String playerUuid = player.getUniqueId().toString();
-            UUID ownerUuid = UUID.fromString(result.getString(2));
+            UUID ownerUuid = UUID.fromString(result.getString("player_list.uuid"));
 
             playerIsOwner = playerUuid.equals(ownerUuid.toString());
             ownerName = Bukkit.getOfflinePlayer(ownerUuid).getName();
-            currentPadlockLevel = result.getInt(3);
-        } catch (SQLException exception) {
+            currentPadlockLevel = result.getInt("level");
+        }
+
+        catch (SQLException exception) {
             exception.printStackTrace();
+
             return false;
         }
 
         if (playerIsOwner) {
             ArrayList<String> members = new ArrayList<String>();
 
-            ResultSet membersResult = LockSystem.access.getInfoFromDatabase(player,
-                    "SELECT uuid FROM locked_objects_members_list WHERE locked_object_id = " + recordId);
+            SelectMembersQuery selectMembersQuery = new SelectMembersQuery(database);
+            ResultSet membersResult = selectMembersQuery.getMembersFromLockedObjectId(recordId);
 
-            if (membersResult == null)
+            if (membersResult == null) {
                 return false;
+            }
 
             try {
-                PlayerRepository playerRepository = (PlayerRepository) API.getRepository(PlayerRepository.class);
-                SeggelinPlayer seggelinPlayer;
-
                 while (membersResult.next()) {
-                    seggelinPlayer = playerRepository.getPlayerByUid(membersResult.getString(1));
-                    members.add(seggelinPlayer.name);
+                    String rawUuid = membersResult.getString(1);
+                    UUID uuid = UUID.fromString(rawUuid);
+
+                    members.add(Bukkit.getOfflinePlayer(uuid).getName());
                 }
             }
 
-            catch(SQLException | RepositoryRequired | EntityNotFound exception) {
+            catch(SQLException exception) {
                 exception.printStackTrace();
             }
 
@@ -167,16 +171,15 @@ public class PluginCommand implements CommandExecutor {
         Block block = player.getTargetBlock(null, 10);
 
         FileConfiguration config = LockSystem.access.getConfig();
-        if ((LockSystem.access).checkIfElementIsAvailable(config, block.getType().toString(), "lockableBlocks") == -1)
+        if (Utility.checkIfElementIsAvailable(config, block.getType().toString(), "lockableBlocks") == -1)
             return false;
 
-        String conditionWhere = (LockSystem.access).getAutomaticConditionWhere(block);
-        ResultSet result = LockSystem.access.getInfoFromDatabase(player,
-                "SELECT player_list.uuid, level FROM locked_objects_list " +
-                 "INNER JOIN player_list ON locked_objects_list.owner_id = player_list.id WHERE " + conditionWhere);
+        SelectLockedObjectsQuery selectLockedObjectsQuery = new SelectLockedObjectsQuery(database);
+        ResultSet result = selectLockedObjectsQuery.getLockedObjectWithOwner(block);
 
-        if (result == null)
+        if (result == null) {
             return false;
+        }
 
         boolean isLocked = false;
         boolean playerIsOwner = false;
@@ -189,33 +192,27 @@ public class PluginCommand implements CommandExecutor {
                 return false;
 
             String playerUuid = player.getUniqueId().toString();
-            UUID ownerUuid = UUID.fromString(result.getString(1));
+            UUID ownerUuid = UUID.fromString(result.getString("player_list.uuid"));
 
             playerIsOwner = playerUuid.equals(ownerUuid.toString());
-            padlockLevel = result.getInt(2);
-        } catch (SQLException exception) {
+            padlockLevel = result.getInt("level");
+        }
+
+        catch (SQLException exception) {
             exception.printStackTrace();
+
             return false;
         }
 
         if (playerIsOwner) {
-            try {
-                UpdateQuery query = (UpdateQuery) API.getDatabase().updateQuery();
-                PreparedStatement statement = query.setQuery(
-                        "UPDATE locked_objects_list SET destroyed_at = now(), " +
-                        "destroy_guilty = ?, destroy_reason = 'Usuniecie klodki' WHERE " + conditionWhere);
+            UpdateLocketObjectsQuery updateLocketObjectsQuery = new UpdateLocketObjectsQuery(database);
+            boolean isWell = updateLocketObjectsQuery.destroy(block, player.getName(), "Usunięcie kłódki");
 
-                statement.setString(1, player.getName());
-                query.execute();
-            }
-
-            catch (SQLException exception) {
-                player.sendMessage(ChatColor.RED + "Cos poszlo nie tak! Zglos to krolowi");
-                exception.printStackTrace();
+            if (!isWell) {
+                player.sendMessage(LockSystem.access.getMessage("lockable.criticalError"));
 
                 return false;
             }
-
 
             List<String> padlocks = config.getStringList("padlocks");
             String padlockName = padlocks.get(padlockLevel - 1).toUpperCase();
@@ -247,20 +244,20 @@ public class PluginCommand implements CommandExecutor {
         Player player = (Player) sender;
         Block block = player.getTargetBlock(null, 10);
 
-        if (block.getType() == Material.AIR)
+        if (block.getType() == Material.AIR) {
             return false;
+        }
 
         FileConfiguration config = LockSystem.access.getConfig();
-        if ((LockSystem.access).checkIfElementIsAvailable(config, block.getType().toString(), "lockableBlocks") == -1)
+        if (Utility.checkIfElementIsAvailable(config, block.getType().toString(), "lockableBlocks") == -1)
             return false;
 
-        String conditionWhere = (LockSystem.access).getAutomaticConditionWhere(block);
-        ResultSet result = LockSystem.access.getInfoFromDatabase(player,
-                "SELECT locked_objects_list.id, player_list.uuid, level FROM locked_objects_list " +
-                 "INNER JOIN player_list ON locked_objects_list.owner_id = player_list.id WHERE " + conditionWhere);
+        SelectLockedObjectsQuery selectLockedObjectsQuery = new SelectLockedObjectsQuery(database);
+        ResultSet result = selectLockedObjectsQuery.getLockedObjectWithOwner(block);
 
-        if (result == null)
+        if (result == null) {
             return false;
+        }
 
         boolean isLocked = false;
         boolean playerIsOwner = false;
@@ -269,16 +266,19 @@ public class PluginCommand implements CommandExecutor {
         try {
             isLocked = result.next();
 
-            if (!isLocked)
+            if (!isLocked) {
                 return false;
+            }
 
-            padlockId = result.getInt(1);
+            padlockId = result.getInt("locked_objects_list.id");
 
             String playerUuid = player.getUniqueId().toString();
-            UUID ownerUuid = UUID.fromString(result.getString(2));
+            UUID ownerUuid = UUID.fromString(result.getString("player_list.uuid"));
 
             playerIsOwner = playerUuid.equals(ownerUuid.toString());
-        } catch (SQLException exception) {
+        }
+
+        catch (SQLException exception) {
             exception.printStackTrace();
             return false;
         }
@@ -289,52 +289,30 @@ public class PluginCommand implements CommandExecutor {
             return false;
         }
 
-
-        PlayerRepository playerRepository = null;
-        try {
-            playerRepository = (PlayerRepository) API.getRepository(PlayerRepository.class);
-        }
-
-        catch (RepositoryRequired exception) {
-            exception.printStackTrace();
-            return false;
-        }
-
+        //database.transaction().start();
         for (int i = 1; i < args.length; i += 1) {
-            try {
-                SeggelinPlayer seggelinPlayer = playerRepository.getPlayerByName(args[i]);
+            //TODO: Change it when the whole code will be refactored
+            String playerUuid = Bukkit.getOfflinePlayer(args[i]).getUniqueId().toString();
 
-                ResultSet memberResult = LockSystem.access.getInfoFromDatabase(player,
-                        "SELECT id FROM locked_objects_members_list WHERE " +
-                         "locked_object_id = " + padlockId + " AND uuid = '" + seggelinPlayer.uuid + "';");
+            //TODO: Add cache system
+            SelectMembersQuery selectMembersQuery = new SelectMembersQuery(database);
+            ResultSet memberResult = selectMembersQuery.checkIfMemberExists(padlockId, playerUuid);
 
-                if (memberResult == null)
-                    return false;
+            if (memberResult != null) {
+                player.sendMessage(ChatColor.RED + "Gracz " + ChatColor.RESET + args[i] + ChatColor.RED + " był już dodany do kłódki!");
 
-                if (memberResult.next()) {
-                    player.sendMessage(ChatColor.RED + "Gracz " + ChatColor.RESET + args[i] + ChatColor.RED + " był już dodany do kłódki!");
-
-                    continue;
-                }
-
-                UpdateQuery query = (UpdateQuery) API.getDatabase().updateQuery();
-
-                PreparedStatement statement = query.setQuery("INSERT INTO locked_objects_members_list" +
-                        " (locked_object_id, uuid, added_at) values (?, ?, now());");
-                statement.setInt(1, padlockId);
-                statement.setString(2, seggelinPlayer.uuid);
-
-                query.execute();
+                continue;
             }
 
-            catch (EntityNotFound notFoundException) {
-                player.sendMessage(ChatColor.RED + "Nie znaleziono gracza " + ChatColor.RESET + args[i] + ChatColor.RED + "!");
-            }
+            InsertMemberQuery insertMemberQuery = new InsertMemberQuery(database);
+            if (!insertMemberQuery.addNewObject(padlockId, playerUuid)) {
+                sender.sendMessage(ChatColor.RED + "Nie udało się zaaktualizować kłódki!");
 
-            catch (SQLException exception) {
-                exception.printStackTrace();
+                return false;
             }
         }
+
+        //database.transaction().commit();
 
         player.sendMessage(ChatColor.GREEN + "Klodka zaaktualizowana!");
         return true;
@@ -359,16 +337,15 @@ public class PluginCommand implements CommandExecutor {
             return false;
 
         FileConfiguration config = LockSystem.access.getConfig();
-        if ((LockSystem.access).checkIfElementIsAvailable(config, block.getType().toString(), "lockableBlocks") == -1)
+        if (Utility.checkIfElementIsAvailable(config, block.getType().toString(), "lockableBlocks") == -1)
             return false;
 
-        String conditionWhere = (LockSystem.access).getAutomaticConditionWhere(block);
-        ResultSet result = LockSystem.access.getInfoFromDatabase(player,
-                "SELECT locked_objects_list.id, player_list.uuid, level FROM locked_objects_list " +
-                 "INNER JOIN player_list ON locked_objects_list.owner_id = player_list.id WHERE " + conditionWhere);
+        SelectLockedObjectsQuery selectLockedObjectsQuery = new SelectLockedObjectsQuery(database);
+        ResultSet result = selectLockedObjectsQuery.getLockedObjectWithOwner(block);
 
-        if (result == null)
+        if (result == null) {
             return false;
+        }
 
         boolean playerIsOwner = false;
         int padlockId = 0;
@@ -377,13 +354,15 @@ public class PluginCommand implements CommandExecutor {
             if (!result.next())
                 return false;
 
-            padlockId = result.getInt(1);
+            padlockId = result.getInt("locked_objects_list.id");
 
             String playerUuid = player.getUniqueId().toString();
-            UUID ownerUuid = UUID.fromString(result.getString(2));
+            UUID ownerUuid = UUID.fromString(result.getString("player_list.uuid"));
 
             playerIsOwner = playerUuid.equals(ownerUuid.toString());
-        } catch (SQLException exception) {
+        }
+
+        catch (SQLException exception) {
             exception.printStackTrace();
             return false;
         }
@@ -394,59 +373,16 @@ public class PluginCommand implements CommandExecutor {
             return false;
         }
 
-        PlayerRepository playerRepository;
-        try {
-            playerRepository = (PlayerRepository) API.getRepository(PlayerRepository.class);
-        }
+        UpdateMembersQuery updateMembersQuery = new UpdateMembersQuery(database);
+        ArrayList<String> members = new ArrayList<>(Arrays.asList(args).subList(1, args.length));
 
-        catch (RepositoryRequired exception) {
-            exception.printStackTrace();
-            return false;
-        }
-
-        StringBuilder builder = new StringBuilder("locked_object_id = " + padlockId);
-        for (int i = 1; i < args.length; i += 1) {
-            try {
-                SeggelinPlayer seggelinPlayer = playerRepository.getPlayerByName(args[i]);
-
-                if (i == 1)
-                    builder.append(" AND (uuid = '");
-                else builder.append(" OR uuid = '");
-
-                builder.append(seggelinPlayer.uuid);
-                builder.append("'");
-            }
-
-            catch (EntityNotFound exception) {
-                player.sendMessage(ChatColor.RED + "Nie znaleziono gracza " + ChatColor.RESET + args[i] + ChatColor.RED + "!");
-            }
-
-            catch (SQLException exception) {
-                exception.printStackTrace();
-            }
-        }
-        builder.append(");");
-
-        try {
-            UpdateQuery query = (UpdateQuery) API.getDatabase().updateQuery();
-            query.setQuery("DELETE FROM locked_objects_members_list WHERE " + builder.toString());
-
-            if (!query.execute()) {
-                player.sendMessage(ChatColor.RED + "Blad podczas aktualizowania klodki!");
-
-                return false;
-            }
-
-            player.sendMessage(ChatColor.GREEN + "Klodka zaaktualizowana!");
-        }
-
-        catch(SQLException exception) {
+        if (!updateMembersQuery.remove(padlockId, members)) {
             player.sendMessage(ChatColor.RED + "Blad podczas aktualizowania klodki!");
-            exception.printStackTrace();
 
             return false;
         }
 
+        player.sendMessage(ChatColor.GREEN + "Klodka zaaktualizowana!");
         return true;
     }
 
@@ -469,16 +405,15 @@ public class PluginCommand implements CommandExecutor {
             return false;
 
         FileConfiguration config = LockSystem.access.getConfig();
-        if ((LockSystem.access).checkIfElementIsAvailable(config, block.getType().toString(), "lockableBlocks") == -1)
+        if (Utility.checkIfElementIsAvailable(config, block.getType().toString(), "lockableBlocks") == -1)
             return false;
 
-        String conditionWhere = (LockSystem.access).getAutomaticConditionWhere(block);
-        ResultSet result = LockSystem.access.getInfoFromDatabase(player,
-                "SELECT locked_objects_list.id, player_list.uuid, level FROM locked_objects_list " +
-                        "INNER JOIN player_list ON locked_objects_list.owner_id = player_list.id WHERE " + conditionWhere);
+        SelectLockedObjectsQuery selectLockedObjectsQuery = new SelectLockedObjectsQuery(database);
+        ResultSet result = selectLockedObjectsQuery.getLockedObjectWithOwner(block);
 
-        if (result == null)
+        if (result == null) {
             return false;
+        }
 
         boolean isLocked = false;
         boolean playerIsOwner = false;
@@ -490,10 +425,10 @@ public class PluginCommand implements CommandExecutor {
             if (!isLocked)
                 return false;
 
-            padlockId = result.getInt(1);
+            padlockId = result.getInt("locked_objects_list.id");
 
             String playerUuid = player.getUniqueId().toString();
-            UUID ownerUuid = UUID.fromString(result.getString(2));
+            UUID ownerUuid = UUID.fromString(result.getString("player_list.uuid"));
 
             playerIsOwner = playerUuid.equals(ownerUuid.toString());
         } catch (SQLException exception) {
@@ -507,9 +442,10 @@ public class PluginCommand implements CommandExecutor {
             return false;
         }
 
-        HashMap<String, Integer> guilds = new HashMap<>();
+        //TODO: Finish the command in the next update
+        /*HashMap<String, Integer> guilds = new HashMap<>();
         try {
-            ResultSet memberResult = LockSystem.access.getInfoFromDatabase(player,
+            ResultSet memberResult = Utility.getInfoFromDatabase(player,
                     "SELECT name, id FROM guild_list");
 
             if (memberResult == null)
@@ -542,7 +478,8 @@ public class PluginCommand implements CommandExecutor {
 
                         query.execute();
 
-                        player.sendMessage(ChatColor.RED + "Gildia dodana pomyslnie do klodki!");
+                        player.sendMessage(ChatColor.RED + "Komenda chwilowo nieskonczona!");
+                        //player.sendMessage(ChatColor.RED + "Gildia dodana pomyslnie do klodki!");
                     }
 
                     catch (SQLException exception) {
@@ -555,7 +492,7 @@ public class PluginCommand implements CommandExecutor {
             }
         }
 
-        player.sendMessage(ChatColor.GREEN + "Klodka zaaktualizowana!");
+        player.sendMessage(ChatColor.GREEN + "Klodka zaaktualizowana!");*/
         return true;
     }
 

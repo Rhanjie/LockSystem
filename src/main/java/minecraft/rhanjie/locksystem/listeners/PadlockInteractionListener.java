@@ -1,25 +1,27 @@
 package minecraft.rhanjie.locksystem.listeners;
 
 import minecraft.rhanjie.locksystem.LockSystem;
-import minecraft.throk.api.API;
-import minecraft.throk.api.SeggelinPlayer;
-import minecraft.throk.api.database.UpdateQuery;
-import minecraft.throk.api.database.repositories.PlayerRepository;
-import minecraft.throk.api.exceptions.EntityNotFound;
-import minecraft.throk.api.exceptions.RepositoryRequired;
-import org.bukkit.*;
+import minecraft.rhanjie.locksystem.database.InsertLockedObjectQuery;
+import minecraft.rhanjie.locksystem.database.SelectLockedObjectsQuery;
+import minecraft.rhanjie.locksystem.database.SelectMembersQuery;
+import minecraft.rhanjie.locksystem.database.UpdateLocketObjectsQuery;
+import minecraft.rhanjie.locksystem.utility.Utility;
+import minecraft.throk.api.database.Database;
+import org.bukkit.Bukkit;
+import org.bukkit.ChatColor;
+import org.bukkit.Material;
+import org.bukkit.Sound;
 import org.bukkit.block.Block;
+import org.bukkit.block.data.BlockData;
 import org.bukkit.block.data.type.Door;
 import org.bukkit.configuration.file.FileConfiguration;
 import org.bukkit.entity.Player;
-import org.bukkit.event.Event;
 import org.bukkit.event.EventHandler;
 import org.bukkit.event.EventPriority;
 import org.bukkit.event.Listener;
 import org.bukkit.event.block.Action;
 import org.bukkit.event.player.PlayerInteractEvent;
 
-import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.sql.Timestamp;
@@ -28,6 +30,12 @@ import java.time.Instant;
 import java.util.*;
 
 public class PadlockInteractionListener implements Listener {
+    private Database database;
+
+    public PadlockInteractionListener(Database database) {
+        this.database = database;
+    }
+
     @EventHandler(priority = EventPriority.LOW)
     public void onPadlockInteract(PlayerInteractEvent event) {
         Player player = event.getPlayer();
@@ -37,20 +45,13 @@ public class PadlockInteractionListener implements Listener {
             return;
 
         FileConfiguration config = LockSystem.access.getConfig();
-        if ((LockSystem.access).checkIfElementIsAvailable(config, block.getType().toString(), "lockableBlocks") == -1)
+        if (Utility.checkIfElementIsAvailable(config, block.getType().toString(), "lockableBlocks") == -1)
             return;
-
-        String uuid = player.getUniqueId().toString();
-        API.playerList.put(uuid, new SeggelinPlayer(player.getName(), uuid));
 
         Material itemInHand = player.getInventory().getItemInMainHand().getType();
-        String conditionWhere = (LockSystem.access).getAutomaticConditionWhere(block);
-        ResultSet result = LockSystem.access.getInfoFromDatabase(player,
-                "SELECT locked_objects_list.id, player_list.uuid, player_list.name, level, break_protection_time FROM locked_objects_list " +
-                 "INNER JOIN player_list ON locked_objects_list.owner_id = player_list.id WHERE " + conditionWhere);
 
-        if (result == null)
-            return;
+        SelectLockedObjectsQuery selectLockedObjectsQuery = new SelectLockedObjectsQuery(database);
+        ResultSet result = selectLockedObjectsQuery.getLockedObjectWithOwner(block);
 
         boolean isLocked = false;
         boolean playerIsOwner = false;
@@ -66,22 +67,24 @@ public class PadlockInteractionListener implements Listener {
             isLocked = result.next();
 
             if (isLocked) {
-                recordId = result.getInt(1);
+                recordId = result.getInt("locked_objects_list.id");
 
                 String uniqueID = player.getUniqueId().toString();
-                playerIsOwner = uniqueID.equals(result.getString(2));
+                playerIsOwner = uniqueID.equals(result.getString("player_list.uuid"));
 
-                ownerName = result.getString(3);
-                currentPadlockLevel = result.getInt(4);
+                ownerName = result.getString("player_list.name");
+                currentPadlockLevel = result.getInt("level");
 
-                if (result.getTimestamp(5) != null)
-                    padlockProtection = result.getTimestamp(5).toInstant().isAfter(Instant.now());
+                if (result.getTimestamp("break_protection_time") != null)
+                    padlockProtection = result.getTimestamp("break_protection_time").toInstant().isAfter(Instant.now());
             }
-        } catch (SQLException exception) {
+        }
+
+        catch (SQLException exception) {
             exception.printStackTrace();
         }
 
-        newPadlockLevel = (LockSystem.access).checkIfElementIsAvailable(config, itemInHand.toString(), "padlocks");
+        newPadlockLevel = Utility.checkIfElementIsAvailable(config, itemInHand.toString(), "padlocks");
         if (newPadlockLevel != -1) {
             this.createPadlock(event, player, recordId, isLocked, playerIsOwner, currentPadlockLevel, newPadlockLevel);
 
@@ -91,7 +94,7 @@ public class PadlockInteractionListener implements Listener {
         if (!isLocked)
             return;
 
-        picklockLevel = (LockSystem.access).checkIfElementIsAvailable(config, itemInHand.toString(), "picklocks");
+        picklockLevel = Utility.checkIfElementIsAvailable(config, itemInHand.toString(), "picklocks");
         if (picklockLevel != -1) {
             if (!playerIsOwner) {
                 if (padlockProtection) {
@@ -125,18 +128,11 @@ public class PadlockInteractionListener implements Listener {
                 return;
             }
 
-            try {
-                UpdateQuery query = (UpdateQuery) API.getDatabase().updateQuery();
-                PreparedStatement statement = query.setQuery("UPDATE locked_objects_list SET level = ? WHERE id = ?");
+            Block block = event.getClickedBlock();
 
-                statement.setInt(1, newPadlockLevel);
-                statement.setInt(2, recordId);
-                query.execute();
-            }
-
-            catch (SQLException exception) {
-                player.sendMessage(ChatColor.RED + "Cos poszlo nie tak! Zglos to krolowi");
-                exception.printStackTrace();
+            UpdateLocketObjectsQuery updateLocketObjectsQuery = new UpdateLocketObjectsQuery(database);
+            if (!updateLocketObjectsQuery.updateLevel(block, newPadlockLevel)) {
+                player.sendMessage(LockSystem.access.getMessage("lockable.criticalError"));
 
                 event.setCancelled(true);
                 return;
@@ -150,29 +146,11 @@ public class PadlockInteractionListener implements Listener {
             return;
         }
 
-        SeggelinPlayer seggelinPlayer = API.playerList.get(player.getUniqueId().toString());
-
         Block block = event.getClickedBlock();
 
-        try {
-            UpdateQuery query = (UpdateQuery) API.getDatabase().updateQuery();
-            PreparedStatement statement = query.setQuery(
-                    "INSERT INTO locked_objects_list(world_uuid, loc_x, loc_y, loc_z, type, owner_id, level, created_at) " +
-                    "values (?, ?, ?, ?, ?, ?, ?, now());");
-
-            statement.setString(1, block.getLocation().getWorld().getUID().toString());
-            statement.setInt(2, block.getLocation().getBlockX());
-            statement.setInt(3, block.getLocation().getBlockY());
-            statement.setInt(4, block.getLocation().getBlockZ());
-            statement.setString(5, block.getType().toString());
-            statement.setInt(6, seggelinPlayer.id);
-            statement.setInt(7, newPadlockLevel);
-            query.execute();
-        }
-
-        catch (SQLException exception) {
-            player.sendMessage(ChatColor.RED + "Cos poszlo nie tak! Zglos to krolowi");
-            exception.printStackTrace();
+        InsertLockedObjectQuery insertLockedObjectQuery = new InsertLockedObjectQuery(database);
+        if (!insertLockedObjectQuery.addNewObject(block, player, newPadlockLevel)) {
+            player.sendMessage(LockSystem.access.getMessage("lockable.criticalError"));
 
             event.setCancelled(true);
             return;
@@ -188,39 +166,32 @@ public class PadlockInteractionListener implements Listener {
     private void tryBreakPadlock(PlayerInteractEvent event, Player player, int recordId, int currentPadlockLevel, int picklockLevel) {
         Random random = new Random();
 
-        if (event.getClickedBlock().getBlockData() instanceof Door) {
+        BlockData blockData = event.getClickedBlock().getBlockData();
+        if (blockData instanceof Door) {
             Door door = (Door) event.getClickedBlock().getBlockData();
 
             if (door.isOpen())
                 return;
         }
 
+        SimpleDateFormat mysqlFriendlyFormat = new SimpleDateFormat("yyyy-MM-dd HH:mm:ss");
+
+        Calendar calendar = Calendar.getInstance();
+        calendar.add(Calendar.HOUR, 6);
+        Date datetime = calendar.getTime();
+
+        String currentTime = mysqlFriendlyFormat.format(datetime);
+        Timestamp timestamp = Timestamp.valueOf(currentTime);
+
+        UpdateLocketObjectsQuery updateLocketObjectsQuery = new UpdateLocketObjectsQuery(database);
+
         //TODO: Wait for player skills system
         int playerLockpickingLevel = random.nextInt(10);
         int chanceToSuccess = 10 + (playerLockpickingLevel * 10) - 50 * (currentPadlockLevel - 1);
+
         if (random.nextInt(100) < chanceToSuccess) {
-            SimpleDateFormat mysqlFriendlyFormat = new SimpleDateFormat("yyyy-MM-dd HH:mm:ss");
-
-            Calendar calendar = Calendar.getInstance();
-            calendar.add(Calendar.HOUR, 6);
-            Date datetime = calendar.getTime();
-
-            String currentTime = mysqlFriendlyFormat.format(datetime);
-
-            try {
-                UpdateQuery query = (UpdateQuery) API.getDatabase().updateQuery();
-                PreparedStatement statement = query.setQuery(
-                        "UPDATE locked_objects_list SET break_protection_time = ? WHERE id = ?;");
-
-                //TODO: Add information for [W]
-                statement.setTimestamp(1, Timestamp.valueOf(currentTime));
-                statement.setInt(2, recordId);
-                query.execute();
-            }
-
-            catch (SQLException exception) {
-                player.sendMessage(ChatColor.RED + "Cos poszlo nie tak! Zglos to krolowi");
-                exception.printStackTrace();
+            if (!updateLocketObjectsQuery.updateBreakProtectionTime(event.getClickedBlock(), timestamp)) {
+                player.sendMessage(LockSystem.access.getMessage("lockable.criticalError"));
 
                 event.setCancelled(true);
                 return;
@@ -231,19 +202,8 @@ public class PadlockInteractionListener implements Listener {
             return;
         }
 
-        try {
-            UpdateQuery query = (UpdateQuery) API.getDatabase().updateQuery();
-            PreparedStatement statement = query.setQuery(
-                    "UPDATE locked_objects_list SET last_break_attempt = now() WHERE id = ?;");
-
-            //TODO: Add information for [W]
-            statement.setInt(1, recordId);
-            query.execute();
-        }
-
-        catch (SQLException exception) {
-            player.sendMessage(ChatColor.RED + "Cos poszlo nie tak! Zglos to krolowi");
-            exception.printStackTrace();
+        if (!updateLocketObjectsQuery.updateBreakProtectionTime(event.getClickedBlock(), timestamp)) {
+            player.sendMessage(LockSystem.access.getMessage("lockable.criticalError"));
 
             event.setCancelled(true);
             return;
@@ -260,53 +220,40 @@ public class PadlockInteractionListener implements Listener {
     private void displayPadlockInfo(PlayerInteractEvent event, Player player, Material itemInHand, boolean playerIsOwner, String ownerName, int recordId, int currentPadlockLevel) {
         ArrayList<UUID> members = new ArrayList<UUID>();
 
-        ResultSet result = LockSystem.access.getInfoFromDatabase(player,
-                "SELECT uuid FROM locked_objects_members_list WHERE locked_object_id = " + recordId);
+        SelectMembersQuery selectMembersQuery = new SelectMembersQuery(database);
+        ResultSet result = selectMembersQuery.getMembersFromLockedObjectId(recordId);
+
+        if (result == null) {
+            return;
+        }
 
         boolean padlockMember = false;
 
         try {
             while (result.next()) {
-                UUID memberUuid = UUID.fromString(result.getString(1));
+                String rawUuid = result.getString(1);
+                UUID memberUuid = UUID.fromString(rawUuid);
                 members.add(memberUuid);
 
-                if (player.getUniqueId().equals(memberUuid))
+                if (player.getUniqueId().equals(memberUuid)) {
                     padlockMember = true;
+                }
             }
-        } catch(SQLException exception) {
+        }
+
+        catch(SQLException exception) {
             exception.printStackTrace();
         }
 
         if (playerIsOwner) {
             if (itemInHand == Material.BOOK) {
-                PlayerRepository playerRepository;
-                try {
-                    playerRepository = (PlayerRepository) API.getRepository(PlayerRepository.class);
-                }
-
-                catch (RepositoryRequired exception) {
-                    player.sendMessage(ChatColor.RED + "Cos poszlo nie tak! Zglos to krolowi");
-                    exception.printStackTrace();
-
-                    event.setCancelled(true);
-                    return;
-                }
-
-                SeggelinPlayer seggelinPlayer;
-
                 String message = "";
                 message += ChatColor.GREEN + LockSystem.access.getMessage("lockable.ownerInfo") + ChatColor.GOLD + "Ty\n";
                 message += ChatColor.GREEN + LockSystem.access.getMessage("lockable.levelInfo") + ChatColor.GOLD + currentPadlockLevel + "\n";
                 message += ChatColor.RESET + "Osoby majace dostep:\n" + ChatColor.GOLD;
-                for (UUID uuid : members) {
-                    try {
-                        seggelinPlayer = playerRepository.getPlayerByUid(uuid.toString());
-                        message += "- " + seggelinPlayer.name + "\n";
-                    }
 
-                    catch (SQLException | EntityNotFound exception) {
-                        exception.printStackTrace();
-                    }
+                for (UUID uuid : members) {
+                    message += "- " + Bukkit.getOfflinePlayer(uuid).getName() + "\n";
                 }
 
                 player.sendMessage(message);

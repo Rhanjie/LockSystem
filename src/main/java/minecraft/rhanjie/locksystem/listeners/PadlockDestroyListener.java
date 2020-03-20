@@ -1,10 +1,10 @@
 package minecraft.rhanjie.locksystem.listeners;
 
 import minecraft.rhanjie.locksystem.LockSystem;
-import minecraft.throk.api.API;
-import minecraft.throk.api.database.UpdateQuery;
-import org.bukkit.ChatColor;
-import org.bukkit.Location;
+import minecraft.rhanjie.locksystem.database.SelectLockedObjectsQuery;
+import minecraft.rhanjie.locksystem.database.UpdateLocketObjectsQuery;
+import minecraft.rhanjie.locksystem.utility.Utility;
+import minecraft.throk.api.database.Database;
 import org.bukkit.Material;
 import org.bukkit.block.Block;
 import org.bukkit.block.Chest;
@@ -16,28 +16,28 @@ import org.bukkit.event.Listener;
 import org.bukkit.event.block.BlockBreakEvent;
 import org.bukkit.inventory.ItemStack;
 
-import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.util.List;
 
 public class PadlockDestroyListener implements Listener {
+    private Database database;
+
+    public PadlockDestroyListener(Database database) {
+        this.database = database;
+    }
+
     @EventHandler(priority = EventPriority.NORMAL)
     public void onPadlockDestroy(BlockBreakEvent event) {
         FileConfiguration config = LockSystem.access.getConfig();
         Player player = event.getPlayer();
         Block block = event.getBlock();
 
-        if ((LockSystem.access).checkIfElementIsAvailable(config, block.getType().toString(), "lockableBlocks") == -1)
+        if (Utility.checkIfElementIsAvailable(config, block.getType().toString(), "lockableBlocks") == -1)
             return;
 
-        String conditionWhere = (LockSystem.access).getAutomaticConditionWhere(block);
-        ResultSet result = LockSystem.access.getInfoFromDatabase(player,
-                "SELECT player_list.uuid, level FROM locked_objects_list " +
-                "INNER JOIN player_list ON locked_objects_list.owner_id = player_list.id WHERE " + conditionWhere);
-
-        if (result == null)
-            return;
+        SelectLockedObjectsQuery selectLockedObjectsQuery = new SelectLockedObjectsQuery(database);
+        ResultSet result = selectLockedObjectsQuery.getLockedObjectWithOwner(block);
 
         boolean isLocked;
         boolean playerIsOwner = false;
@@ -45,14 +45,17 @@ public class PadlockDestroyListener implements Listener {
 
         try {
             isLocked = result.next();
-
             if (!isLocked)
                 return;
 
-            String uniqueID = player.getUniqueId().toString();
-            playerIsOwner = uniqueID.equals(result.getString(1));
-            padlockLevel = result.getInt(2);
-        } catch (SQLException exception) {
+            String playerID = player.getUniqueId().toString();
+            String ownerID = result.getString("player_list.uuid");
+
+            playerIsOwner = playerID.equals(ownerID);
+            padlockLevel = result.getInt("level");
+        }
+
+        catch (SQLException exception) {
             exception.printStackTrace();
         }
 
@@ -63,47 +66,13 @@ public class PadlockDestroyListener implements Listener {
             return;
         }
 
+        UpdateLocketObjectsQuery updateLocketObjectsQuery = new UpdateLocketObjectsQuery(database);
+
         if (block.getState() instanceof Chest) {
-            Location location = LockSystem.access.getChestSecondPartLocation((Chest) block.getState());
-            if (location != null) {
-                try {
-                    UpdateQuery query = (UpdateQuery) API.getDatabase().updateQuery();
-                    PreparedStatement statement = query.setQuery("UPDATE locked_objects_list" +
-                            " SET loc_x = ?, loc_y = ?, loc_z = ? WHERE " + conditionWhere);
-
-                    statement.setInt(1, location.getBlockX());
-                    statement.setInt(2, location.getBlockY());
-                    statement.setInt(3, location.getBlockZ());
-                    query.execute();
-                }
-
-                catch (SQLException exception) {
-                    player.sendMessage(ChatColor.RED + "Cos poszlo nie tak! Zglos to krolowi");
-                    exception.printStackTrace();
-
-                    event.setCancelled(true);
-                }
-
-                return;
-            }
+            updateLocketObjectsQuery.updatePosition(block);
         }
 
-        try {
-            UpdateQuery query = (UpdateQuery) API.getDatabase().updateQuery();
-            PreparedStatement statement = query.setQuery("UPDATE locked_objects_list SET destroyed_at = now(), " +
-                    "destroy_guilty = ?, destroy_reason = 'Zniszczenie bloku' WHERE " + conditionWhere);
-
-            statement.setString(1, player.getName());
-            query.execute();
-        }
-
-        catch (SQLException exception) {
-            player.sendMessage(ChatColor.RED + "Cos poszlo nie tak! Zglos to krolowi");
-            exception.printStackTrace();
-
-            event.setCancelled(true);
-            return;
-        }
+        updateLocketObjectsQuery.destroy(block, player.getName(), "Zniszczenie bloku");
 
         if (playerIsOwner) {
             List<String> padlocks = config.getStringList("padlocks");

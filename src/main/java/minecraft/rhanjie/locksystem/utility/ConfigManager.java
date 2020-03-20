@@ -66,26 +66,28 @@ public class ConfigManager {
         messages = YamlConfiguration.loadConfiguration(messagesFile);
         messages.options().copyDefaults(true);
 
-        messages.addDefault("lockable.ownerInfo", ChatColor.GREEN + "Wlasciciel ");
+        messages.addDefault("lockable.ownerInfo", ChatColor.GREEN + "Wlaściciel ");
         messages.addDefault("lockable.padlockInfo", "Zabezpieczona zamkiem");
-        messages.addDefault("lockable.levelInfo", "Poziom klodki ");
-        messages.addDefault("lockable.levelTip", "Jesli chcesz zwiekszyc poziom klodki, kliknij odpowiednim blokiem");
-        messages.addDefault("lockable.notOwner", ChatColor.RED + "Nie masz dostepu do klodki!");
+        messages.addDefault("lockable.levelInfo", "Poziom kłódki ");
+        messages.addDefault("lockable.levelTip", "Jeśli chcesz zwiekszyć poziom klódki, kliknij odpowiednim blokiem");
+        messages.addDefault("lockable.notOwner", ChatColor.RED + "Nie masz dostępu do klódki!");
 
-        messages.addDefault("lockable.createSuccess", ChatColor.GREEN + "Klodka zalozona!");
-        messages.addDefault("lockable.removeSuccess", ChatColor.GREEN + "Klodka pomyslnie usunieta!");
-        messages.addDefault("lockable.improveSuccess", ChatColor.GREEN + "Klodka ulepszona!");
-        messages.addDefault("lockable.improveFail", ChatColor.RED + "Probujesz zalozyc gorsza lub taka sama klodke!");
+        messages.addDefault("lockable.createSuccess", ChatColor.GREEN + "Klódka zalożona!");
+        messages.addDefault("lockable.removeSuccess", ChatColor.GREEN + "Klódka pomyślnie usunięta!");
+        messages.addDefault("lockable.improveSuccess", ChatColor.GREEN + "Klódka ulepszona!");
+        messages.addDefault("lockable.improveFail", ChatColor.RED + "Próbujesz załozyć taka samą lub gorszą klodkę!");
 
-        messages.addDefault("lockable.breakSuccess", ChatColor.GREEN + "Pomyslnie wlamales sie do schowka");
-        messages.addDefault("lockable.breakFail", ChatColor.RED + "Zlamales wytrych i zostawiles slady!");
+        messages.addDefault("lockable.breakSuccess", ChatColor.GREEN + "Pomyślnie wlamaleś się do schowka");
+        messages.addDefault("lockable.breakFail", ChatColor.RED + "Złamaleś wytrych i zostawileś ślady!");
 
-        messages.addDefault("lockable.destroyFail", ChatColor.RED + "Nie mozesz zniszczyc zabezpieczonego klodka bloku!");
+        messages.addDefault("lockable.destroyFail", ChatColor.RED + "Nie możesz zniszczyć zabezpieczonego kłódką bloku!");
+
+        messages.addDefault("lockable.criticalError", ChatColor.RED + "Coś poszło nie tak! Zgłoś to królowi!");
 
         try {
             messages.save(messagesFile);
-        } catch (IOException e) {
-            e.printStackTrace();
+        } catch (IOException exception) {
+            exception.printStackTrace();
         }
     }
 }
