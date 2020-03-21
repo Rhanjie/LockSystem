@@ -1,6 +1,5 @@
 package minecraft.rhanjie.locksystem.database
 
-import minecraft.rhanjie.locksystem.LockSystem
 import minecraft.throk.api.database.Database
 import org.bukkit.block.Block
 import org.bukkit.entity.Player
@@ -26,14 +25,9 @@ class InsertLockedObjectQuery constructor(private val database: Database) {
         }
 
         val location = block.location
-        val world = location.world
-        if (world == null) {
-            player.sendMessage(LockSystem.access.getMessage("lockable.criticalError"))
+        val world = location.world ?: return false
 
-            return false
-        }
-
-        statement.setString(1, location.world!!.uid.toString())
+        statement.setString(1, world.uid.toString())
         statement.setInt(2, location.blockX)
         statement.setInt(3, location.blockY)
         statement.setInt(4, location.blockZ)

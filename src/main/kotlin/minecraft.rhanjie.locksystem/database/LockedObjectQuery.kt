@@ -19,8 +19,8 @@ abstract class LockedObjectQuery {
 
         if (block.blockData is Door) {
             secondLocation = Utility.getDoorSecondPartLocation(block.blockData as Door, block.location)
-            if (secondLocation != null)
-                return secondLocation
+
+            return secondLocation
         }
 
         return null
