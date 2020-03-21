@@ -12,11 +12,9 @@ import org.bukkit.Bukkit
 import org.bukkit.Location
 import org.bukkit.World
 import org.bukkit.block.Block
-import org.bukkit.plugin.PluginManager
 import org.bukkit.plugin.java.JavaPlugin
-import java.sql.ResultSet
 import java.sql.SQLException
-import java.util.UUID
+import java.util.*
 
 class LockSystem : JavaPlugin() {
     private lateinit var configManager: ConfigManager
@@ -80,7 +78,7 @@ class LockSystem : JavaPlugin() {
                     continue
                 }
 
-                val updateLocketObjectsQuery = UpdateLocketObjectsQuery(api!!.getDatabase())
+                val updateLocketObjectsQuery = UpdateLocketObjectsQuery(api!!.database)
                 val destroyReason = "Blad! Brak bloku, uszkodzony zamek!"
 
                 updateLocketObjectsQuery.destroy(block, "undefined", destroyReason)

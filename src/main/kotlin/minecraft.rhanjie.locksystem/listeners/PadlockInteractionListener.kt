@@ -58,8 +58,8 @@ class PadlockInteractionListener(private val database: Database, private val con
 
         var recordId = -1
         var currentPadlockLevel = 1
-        var newPadlockLevel = 0
-        var picklockLevel = 0
+        val newPadlockLevel: Int
+        val picklockLevel: Int
 
         try {
             isLocked = result.next()
@@ -129,7 +129,7 @@ class PadlockInteractionListener(private val database: Database, private val con
             }
 
             val updateLocketObjectsQuery = UpdateLocketObjectsQuery(database)
-            if (!updateLocketObjectsQuery.updateLevel(block!!, newPadlockLevel)) {
+            if (!updateLocketObjectsQuery.updateLevel(block, newPadlockLevel)) {
                 player.sendMessage(configManager.getMessage("lockable.criticalError"))
                 event.isCancelled = true
 
@@ -146,7 +146,7 @@ class PadlockInteractionListener(private val database: Database, private val con
         }
 
         val insertLockedObjectQuery = InsertLockedObjectQuery(database)
-        if (!insertLockedObjectQuery.addNewObject(block!!, player, newPadlockLevel)) {
+        if (!insertLockedObjectQuery.addNewObject(block, player, newPadlockLevel)) {
             player.sendMessage(configManager.getMessage("lockable.criticalError"))
             event.isCancelled = true
 
